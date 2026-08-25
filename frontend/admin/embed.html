@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>智能客服</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    /* Transparent, not a solid colour.
+       This page is almost always loaded inside an <iframe> that's larger than
+       the widget's floating panel. A painted background would fill that extra
+       area with a visible block; transparent lets the host page show through,
+       so only the widget's own rounded panel and button are seen.
+       `?bg=` can restore a colour for standalone use. */
+    background: transparent;
+  }
+  /* The widget floats with position:fixed. Inside this standalone page that's
+     exactly what we want — it fills whatever iframe / window hosts us. */
+  #hint {
+    padding: 40px 24px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+    line-height: 1.8;
+    /* Give the loading text its own backdrop so it stays readable against
+       whatever the host page looks like. */
+    background: rgba(255, 255, 255, .92);
+    border-radius: 12px;
+    margin: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+  }
+  #hint code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="hint">
+  正在加载客服组件…<br>
+  如果长时间没反应，请检查浏览器控制台。
+</div>
+
+<script>
+(function () {
+  // The API base can be passed in via ?api=... (the admin preview does this);
+  // otherwise assume the widget is served from the same origin as the backend.
+  const params = new URLSearchParams(location.search);
+  const apiUrl = params.get('api') || location.origin;
+
+  // Only forward options the URL actually specified. Passing a default for
+  // e.g. `title` would mark it as caller-supplied, and the widget would then
+  // refuse to sync 客服名称 from GET /api/config — leaving the admin console's
+  // value silently ignored.
+  const opts = { apiUrl: apiUrl };
+  const pass = (name, key, transform) => {
+    const raw = params.get(name);
+    if (raw !== null && raw !== '') opts[key] = transform ? transform(raw) : raw;
+  };
+  pass('title', 'title');
+  pass('accent', 'accent');
+  pass('position', 'position');
+  pass('avatar', 'avatar');
+  pass('welcome', 'welcome');
+  opts.autoOpen = params.get('autoOpen') !== '0';
+  opts.enableUpload = params.get('upload') !== '0';
+
+  // The page is transparent by default so an oversized iframe doesn't show a
+  // block of colour. `?bg=` paints one back when this page is opened directly
+  // or hosted in a preview pane that wants a backdrop.
+  //   ?bg=f4f6f9   → #f4f6f9      ?bg=%23fff → #fff
+  const bg = params.get('bg');
+  if (bg) {
+    document.documentElement.style.background =
+      /^[0-9a-f]{3,8}$/i.test(bg) ? '#' + bg : bg;
+  }
+
+  const s = document.createElement('script');
+  // Cache-bust so an edited widget never renders from a stale copy. The
+  // backend also sends Cache-Control: no-cache for /widget, but a query
+  // param additionally defeats offline / service-worker caches.
+  const bust = params.get('v') || Date.now();
+  s.src = '../widget/customer-service.js?v=' + bust;
+  s.onload = function () {
+    document.getElementById('hint').style.display = 'none';
+    window.CustomerService.init(opts);
+  };
+  s.onerror = function () {
+    document.getElementById('hint').innerHTML =
+      '❌ 无法加载 <code>customer-service.js</code><br>' +
+      '请确认后端已挂载 <code>/widget</code> 静态目录。';
+  };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>

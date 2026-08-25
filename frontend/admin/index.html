@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>智能客服系统 · 管理后台</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #f4f6f9;
+    color: #1a1a1a;
+  }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    background: #1f2937;
+    color: #d1d5db;
+    padding: 24px 0;
+    flex-shrink: 0;
+  }
+  .sidebar h1 { font-size: 16px; color: #fff; margin: 0 20px 24px; padding-bottom: 16px; border-bottom: 1px solid #374151; }
+  .nav-item {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    font-size: 14px;
+    transition: background .15s;
+  }
+  .nav-item:hover { background: #111827; }
+  .nav-item.active { background: #111827; border-left-color: #3b82f6; color: #fff; }
+  .main { flex: 1; padding: 32px 40px; overflow-y: auto; }
+  .page { display: none; max-width: 920px; }
+  .page.active { display: block; }
+  .page h2 { font-size: 22px; margin: 0 0 6px; }
+  .page .desc { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .card h3 { margin: 0 0 16px; font-size: 16px; }
+  .form-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .form-field { flex: 1; min-width: 220px; }
+  .form-field.full { flex-basis: 100%; }
+  .form-field label { display: block; font-size: 13px; color: #374151; margin-bottom: 6px; font-weight: 500; }
+  .form-field .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+  .form-field input, .form-field select, .form-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border .15s;
+    background: #fff;
+  }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+  .form-field textarea { min-height: 80px; resize: vertical; }
+  .form-field input[type="range"] { padding: 0; }
+  .form-field .range-row { display: flex; gap: 8px; align-items: center; }
+  .form-field .range-row .value { width: 50px; text-align: right; font-size: 13px; color: #6b7280; }
+  .btn {
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity .15s, transform .05s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-success { background: #10b981; color: #fff; }
+  .btn-secondary { background: #e5e7eb; color: #374151; }
+  .btn-secondary:hover { background: #d1d5db; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+  .alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 12px; display: none; }
+  .alert.show { display: block; }
+  .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .alert-info    { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table th, table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+  table th { background: #f9fafb; font-weight: 600; color: #374151; }
+  .status-pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .status-uploaded  { background: #e0e7ff; color: #3730a3; }
+  .status-processing{ background: #fef3c7; color: #92400e; }
+  .status-ready     { background: #d1fae5; color: #065f46; }
+  .status-failed    { background: #fee2e2; color: #991b1b; }
+  .empty { text-align: center; color: #9ca3af; padding: 40px; }
+  .dropzone {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border .15s, background .15s;
+    color: #6b7280;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: #3b82f6; background: #eff6ff; color: #1e40af; }
+  .dropzone strong { color: #3b82f6; }
+  /* 圆点配色（胶囊本体样式见下面的 .conn-status 规则） */
+  .conn-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
+  .conn-status.ok .dot { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+  .conn-status.err .dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+  .conn-status.checking .dot { background: #f59e0b; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  /* ─── 顶部栏 ─────────────────────────────────────────
+     原来是「标题 | 状态文字」两端对齐，状态里一旦出现长报错
+     （Failed to fetch）就把整行撑开、挤到标题旁边。现在改成
+     左标题 / 右工具区，状态只留圆点+短标签，详细信息进 tooltip。 */
+  .topbar {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 16px; flex-wrap: wrap;
+    padding-bottom: 16px; margin-bottom: 20px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .topbar-left h2 { margin: 0; font-size: 22px; }
+  .topbar .api-url { color: #6b7280; font-size: 13px; margin-top: 4px; }
+  .topbar .api-url code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* 工具按钮：状态胶囊与按钮同高，视觉成组 */
+  .tool-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px; height: 34px; box-sizing: border-box;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: 13px; font-family: inherit; color: #374151;
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+    position: relative;
+  }
+  .tool-btn:hover { border-color: #9ca3af; background: #f9fafb; }
+  .tool-btn:active { transform: translateY(1px); }
+  .tool-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .tool-btn .tool-img { width: 15px; height: 15px; display: block; object-fit: contain; }
+  .tool-btn .tool-ico { font-size: 13px; line-height: 1; }
+  .tool-btn.spin .tool-ico { display: inline-block; animation: spin .8s linear infinite; }
+  /* 有新版本时的红点提示 */
+  .badge-dot {
+    position: absolute; top: -3px; right: -3px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ef4444; box-shadow: 0 0 0 2px #fff;
+  }
+
+  .conn-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 34px; box-sizing: border-box; padding: 0 12px;
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+    font-size: 13px; color: #374151; cursor: default; white-space: nowrap;
+  }
+  /* 状态文字保持短：长报错放 title，超长时截断而不是撑破布局 */
+  .conn-status .conn-text { max-width: 130px; overflow: hidden;
+                            text-overflow: ellipsis; white-space: nowrap; }
+  .conn-status.ok  { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+  .conn-status.err { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+
+  @media (max-width: 720px) {
+    .topbar { flex-direction: column; }
+    .topbar-right { width: 100%; }
+  }
+
+  /* ─── 弹窗（打赏 / 检测更新）───────────────────────── */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 3000;
+    background: rgba(17, 24, 39, .5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-mask[hidden] { display: none; }
+  .modal {
+    background: #fff; border-radius: 12px; width: 100%; max-width: 420px;
+    max-height: calc(100vh - 40px); overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+    padding: 20px 22px 22px;
+    animation: modal-in .16s ease-out;
+  }
+  @keyframes modal-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .modal-head h3 { margin: 0; font-size: 17px; }
+  .modal-close {
+    background: none; border: 0; font-size: 24px; line-height: 1;
+    color: #9ca3af; cursor: pointer; padding: 0 4px;
+  }
+  .modal-close:hover { color: #374151; }
+  .modal-desc { color: #6b7280; font-size: 13px; line-height: 1.7; margin: 0 0 16px; }
+
+  /* 支付方式切换 */
+  .pay-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .pay-tab {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 9px 6px; background: #f9fafb;
+    border: 1.5px solid #e5e7eb; border-radius: 8px;
+    font-size: 13px; font-family: inherit; color: #374151; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .pay-tab:hover { background: #f3f4f6; }
+  .pay-tab.active { border-color: #3b82f6; background: #eff6ff; color: #1e40af; font-weight: 600; }
+  .pay-tab-ico { font-size: 14px; line-height: 1; }
+
+  /* 二维码：固定高度，切换时不跳动 */
+  .qr-box { text-align: center; }
+  .qr-box img {
+    width: 100%; max-width: 260px; height: 260px; object-fit: contain;
+    border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; padding: 8px;
+  }
+  .qr-hint { color: #6b7280; font-size: 13px; margin-top: 10px; }
+
+  /* 更新弹窗内容 */
+  .upd-row { display: flex; justify-content: space-between; gap: 12px;
+             padding: 9px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+  .upd-row:last-of-type { border-bottom: 0; }
+  .upd-row .k { color: #6b7280; }
+  .upd-row .v { font-weight: 600; }
+  .upd-note {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 10px 12px; margin-top: 12px;
+    font-size: 12.5px; line-height: 1.7; color: #374151;
+    max-height: 180px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .upd-cmd {
+    background: #1f2937; color: #d6deeb; border-radius: 8px;
+    padding: 12px; margin-top: 12px; font-size: 12px; line-height: 1.7;
+    overflow-x: auto; white-space: pre;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  /* 636px = 面板 540 + 按钮位 76 + 边距 20。低于这个值面板会被裁掉，
+     露出 iframe 背景色（看起来像一块白板）。 */
+  .chat-frame { height: 636px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #f4f6f9; position: relative; }
+  .chat-hint { text-align: center; color: #9ca3af; padding: 24px; font-size: 13px; }
+
+  /* First-run wizard banner */
+  .wizard-banner {
+    display: none;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+    border-left: 5px solid #f59e0b;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(245, 158, 11, 0.15);
+  }
+  .wizard-banner.show { display: block; }
+  .wizard-banner.ok {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-color: #10b981;
+    border-left-color: #10b981;
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.15);
+  }
+  .wizard-banner h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: #92400e;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .wizard-banner.ok h3 { color: #065f46; }
+  .wizard-banner ul { margin: 8px 0 12px 20px; color: #78350f; font-size: 13px; line-height: 1.8; }
+  .wizard-banner.ok ul { color: #064e3b; }
+  .wizard-banner .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .wizard-banner .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #92400e;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .spinner-sm {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 2px solid #6b7280;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+
+  @media (max-width: 720px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; padding: 12px 0; }
+    .sidebar h1 { display: inline-block; margin: 0 16px; padding: 0; border: 0; }
+    .nav-item { display: inline-block; padding: 8px 14px; border-left: 0; border-bottom: 3px solid transparent; }
+    .nav-item.active { border-left: 0; border-bottom-color: #3b82f6; }
+    .main { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h1>🤖 智能客服</h1>
+    <div class="nav-item active" data-page="dashboard">📊 <span class="icon"></span>概览</div>
+    <div class="nav-item" data-page="llm">🤖 <span class="icon"></span>模型配置</div>
+    <div class="nav-item" data-page="vector">🧠 <span class="icon"></span>向量库</div>
+    <div class="nav-item" data-page="rag">🔍 <span class="icon"></span>RAG 设置</div>
+    <div class="nav-item" data-page="documents">📄 <span class="icon"></span>知识文档</div>
+    <div class="nav-item" data-page="agent">💬 <span class="icon"></span>客服信息</div>
+    <div class="nav-item" data-page="chat">🪟 <span class="icon"></span>聊天预览</div>
+    <div class="nav-item" data-page="embed">🌐 <span class="icon"></span>嵌入指南</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h2>管理后台</h2>
+        <div class="api-url">API: <code id="apiUrlDisplay">http://localhost:8000</code></div>
+      </div>
+      <div class="topbar-right">
+        <!-- 后端状态：只显示圆点 + 短标签，详细错误挪到 title 提示，
+             避免长报错（如 "Failed to fetch"）把整行撑开。 -->
+        <div id="connStatus" class="conn-status" title="">
+          <span class="dot"></span><span class="conn-text">未连接</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="tool-btn" id="btnCheckUpdate" title="检查是否有新版本">
+            <span class="tool-ico" id="updateIco">⬆︎</span>
+            <span>检测更新</span>
+            <span class="badge-dot" id="updateBadge" hidden></span>
+          </button>
+          <button class="tool-btn" id="btnDonate" title="打赏支持作者">
+            <img src="/assets/donate.png" alt="" class="tool-img" />
+            <span>打赏支持</span>
+          </button>
+          <a class="tool-btn" id="btnGithub" href="#" target="_blank" rel="noopener noreferrer"
+             title="在 GitHub 上查看项目">
+            <img src="/assets/github.svg" alt="" class="tool-img" />
+            <span>GitHub</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- First-run wizard banner -->
+    <div class="wizard-banner" id="wizardBanner">
+      <h3 id="wizardTitle">⚠️ 检测到系统未完成初始化</h3>
+      <div id="wizardBody">
+        <p style="margin:8px 0;color:#78350f;font-size:13px;">系统检测到以下问题：</p>
+        <ul id="wizardIssues"></ul>
+        <p style="margin:8px 0;color:#78350f;font-size:13px;">点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。</p>
+        <div class="actions">
+          <button class="btn btn-primary" id="btnInit">🚀 一键初始化</button>
+          <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+        </div>
+      </div>
+      <div id="wizardOk" style="display:none;">
+        <p style="margin:8px 0;color:#065f46;font-size:13px;" id="wizardOkText">✅ 初始化完成！</p>
+        <ul id="wizardActions"></ul>
+      </div>
+    </div>
+
+    <section class="page active" id="page-dashboard">
+      <h2>系统概览</h2>
+      <p class="desc">在这里查看系统状态并快速跳转到各配置页。</p>
+      <div class="card">
+        <h3>快速开始</h3>
+        <ol style="line-height:1.9;color:#374151;">
+          <li>前往 <strong>「模型配置」</strong> 选择厂商并填入 API Key</li>
+          <li>点击 <strong>「测试连接」</strong> 验证 Key 可用</li>
+          <li>前往 <strong>「知识文档」</strong> 上传并入库文档</li>
+          <li>在 <strong>「聊天预览」</strong> 立即体验</li>
+        </ol>
+      </div>
+      <div class="form-row">
+        <div class="card" style="flex:1;">
+          <h3>当前模型</h3>
+          <div id="dashModel" style="font-size:14px;color:#374151;">—</div>
+        </div>
+        <div class="card" style="flex:1;">
+          <h3>向量库</h3>
+          <div id="dashVector" style="font-size:14px;color:#374151;">—</div>
+        </div>
+        <div class="card" style="flex:1;">
+          <h3>知识文档</h3>
+          <div id="dashDocs" style="font-size:14px;color:#374151;">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-llm">
+      <h2>模型配置</h2>
+      <p class="desc">配置智能客服使用的 AI 模型。修改后立即生效，无需重启。</p>
+
+      <div class="card">
+        <h3>💬 对话模型（生成回答）</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label>厂商 (Provider)</label>
+            <select id="llmProvider"></select>
+            <div class="hint" id="providerHint">选择一个 LLM 厂商</div>
+          </div>
+          <div class="form-field">
+            <label>协议</label>
+            <select id="llmProtocol"></select>
+            <div class="hint" id="protocolHint">切换协议会自动更新 Base URL</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>API Key</label>
+            <input type="password" id="llmApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off" />
+            <div class="hint">留空表示不修改已保存的密钥</div>
+          </div>
+          <div class="form-field">
+            <label>Base URL <span id="llmBaseUrlReq" style="display:none;color:#dc2626;">*必填</span></label>
+            <input type="text" id="llmBaseUrl" placeholder="https://api.deepseek.com/v1" />
+            <div class="hint">API 根地址，末尾不要带 <code>/chat/completions</code></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>
+              模型名称 <span id="llmModelReq" style="display:none;color:#dc2626;">*必填</span>
+              <span id="modelLoading" style="display:none;color:#6b7280;font-weight:400;">
+                <span class="spinner-sm"></span>正在获取模型列表…
+              </span>
+            </label>
+            <div style="display:flex;gap:6px;">
+              <select id="llmModelSelect" style="flex:1;"></select>
+              <button class="btn btn-secondary" id="btnRefreshModels" title="从厂商接口重新获取模型列表"
+                      style="padding:8px 10px;">🔄</button>
+            </div>
+            <input type="text" id="llmModel" placeholder="deepseek-chat" style="margin-top:6px;" />
+            <div class="hint" id="llmModelHint">上方下拉选择，或在此手动输入模型名</div>
+          </div>
+          <div class="form-field">
+            <label>Temperature</label>
+            <div class="range-row">
+              <input type="range" id="llmTemp" min="0" max="1" step="0.05" />
+              <span class="value" id="llmTempVal">0.30</span>
+            </div>
+            <div class="hint">越低越稳定（推荐 ≤ 0.3 减少幻觉）</div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="btnResetLlmDefaults">↩︎ 用厂商默认值填充</button>
+          <button class="btn btn-secondary" id="btnTest">🔌 测试连接</button>
+          <button class="btn btn-primary" id="btnSave">💾 保存对话模型</button>
+        </div>
+        <div class="alert alert-success" id="llmOk"></div>
+        <div class="alert alert-error" id="llmErr"></div>
+      </div>
+
+      <div class="card">
+        <h3>🧬 向量模型（文档 Embedding）</h3>
+        <p style="color:#6b7280;font-size:13px;margin-top:-8px;">
+          用于把文档和问题转成向量。多数厂商的 embedding 接口与对话接口同一个 Key 和 Base URL。
+        </p>
+        <div class="form-row">
+          <div class="form-field">
+            <label>API Key</label>
+            <input type="password" id="embApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off" />
+            <div class="hint">留空表示不修改已保存的密钥</div>
+          </div>
+          <div class="form-field">
+            <label>Base URL</label>
+            <input type="text" id="embBaseUrl" placeholder="https://api.openai.com/v1" />
+            <div class="hint">调用 <code>{base}/embeddings</code></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Embedding 模型</label>
+            <input type="text" id="embModel" placeholder="text-embedding-3-small" />
+            <div class="hint" id="embModelHint"></div>
+          </div>
+          <div class="form-field">
+            <label>向量维度</label>
+            <input type="number" id="embDim" placeholder="1024" />
+            <div class="hint">必须与模型实际输出一致（点「测试」可自动探测）</div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="btnCopyFromLlm">⬆︎ 复用对话模型的 Key / URL</button>
+          <button class="btn btn-secondary" id="btnTestEmb">🔌 测试并探测维度</button>
+          <button class="btn btn-primary" id="btnSaveEmb">💾 保存向量模型</button>
+        </div>
+        <div class="alert alert-success" id="embOk"></div>
+        <div class="alert alert-error" id="embErr"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-vector">
+      <h2>向量库配置</h2>
+      <p class="desc">修改向量库需要重启后端服务（SQLite + Chroma 持久化已开箱即用）。</p>
+      <div class="card">
+        <h3>基础设置</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label>向量库类型</label>
+            <select id="vecProvider">
+              <option value="chroma">Chroma (本地文件，推荐)</option>
+              <option value="qdrant">Qdrant (生产级，需服务)</option>
+              <option value="milvus">Milvus (企业级，本地 Lite / 远端集群)</option>
+            </select>
+            <div class="hint" id="vecProviderHint"></div>
+          </div>
+          <div class="form-field">
+            <label>集合名</label>
+            <input type="text" id="vecCollection" placeholder="knowledge_base" />
+          </div>
+        </div>
+
+        <!-- Qdrant-only -->
+        <div class="form-row" id="qdrantFields" style="display:none;">
+          <div class="form-field">
+            <label>Qdrant Host</label>
+            <input type="text" id="vecHost" placeholder="localhost" />
+          </div>
+          <div class="form-field">
+            <label>Qdrant Port</label>
+            <input type="number" id="vecPort" placeholder="6333" />
+          </div>
+        </div>
+
+        <!-- Milvus-only -->
+        <div id="milvusFields" style="display:none;">
+          <div class="form-row">
+            <div class="form-field full">
+              <label>Milvus URI</label>
+              <input type="text" id="vecMilvusUri" placeholder="./data/milvus.db" />
+              <div class="hint">
+                本地零安装（Milvus Lite）填 <code>./data/milvus.db</code>；
+                连服务器填 <code>http://localhost:19530</code>；
+                Zilliz Cloud 填 <code>https://xxx.zillizcloud.com</code>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Token / API Key（Zilliz Cloud 才需要）</label>
+              <input type="password" id="vecMilvusToken" placeholder="留空即可" autocomplete="off" />
+            </div>
+            <div class="form-field">
+              <label>Database 名（可选）</label>
+              <input type="text" id="vecMilvusDbName" placeholder="default" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>向量维度</label>
+            <input type="number" id="vecDim" placeholder="1024" />
+            <div class="hint">必须与 Embedding 模型输出一致<span id="vecDimStrict" style="display:none;color:#b45309;">（Milvus 建集合时固定，改了要新建集合）</span></div>
+          </div>
+          <div class="form-field" id="chromaPersistField">
+            <label>持久化目录 (Chroma)</label>
+            <input type="text" id="vecPersist" placeholder="./data/chroma_db" />
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnSaveVec">💾 保存</button>
+        </div>
+        <div class="alert alert-info" id="vecInfo">提示：切换向量库后需要重新上传并入库文档。</div>
+      </div>
+    </section>
+
+    <section class="page" id="page-rag">
+      <h2>RAG 设置</h2>
+      <p class="desc">检索增强生成的参数调优。</p>
+      <div class="card">
+        <h3>检索参数</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Top K</label>
+            <input type="number" id="ragTopK" min="1" max="20" />
+            <div class="hint">每次检索返回的相关片段数</div>
+          </div>
+          <div class="form-field">
+            <label>相似度阈值 (0~1)</label>
+            <div class="range-row">
+              <input type="range" id="ragThreshold" min="0" max="1" step="0.05" />
+              <span class="value" id="ragThresholdVal">0.50</span>
+            </div>
+            <div class="hint">低于此值视为不相关，会触发「无法回答」</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>回答策略</h3>
+        <div class="form-row">
+          <div class="form-field full">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="ragAllowModelKnowledge" style="width:auto;margin:0;" />
+              知识库没有相关内容时，允许 AI 用自己的知识回答
+            </label>
+            <div class="hint" id="ragAllowHint"></div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnSaveAnswerMode">💾 保存回答策略</button>
+        </div>
+        <div class="alert alert-success" id="answerModeOk"></div>
+        <div class="alert alert-error" id="answerModeErr"></div>
+      </div>
+
+      <div class="card">
+        <h3>文本切分</h3>
+        <div class="form-row">
+          <div class="form-field full">
+            <label>切分策略</label>
+            <select id="ragStrategy">
+              <option value="structure">结构感知（推荐）— 按章节 / 标题 / Q&amp;A 切，不切断语义</option>
+              <option value="window">固定窗口 — 按字数硬切，不看结构</option>
+            </select>
+            <div class="hint" id="ragStrategyHint"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Chunk Size (字符)</label>
+            <input type="number" id="ragChunkSize" min="100" max="4000" />
+            <div class="hint">结构感知模式下这是上限，实际按章节长度决定</div>
+          </div>
+          <div class="form-field">
+            <label>Chunk Overlap</label>
+            <input type="number" id="ragChunkOverlap" min="0" max="1000" />
+            <div class="hint">建议 80~200；仅在需要硬切长段落时生效</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field full">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="ragPrefixHeading" style="width:auto;margin:0;" />
+              给每个片段加上所属标题前缀
+            </label>
+            <div class="hint">
+              开启后，检索到「Q4：数据安全吗？」时会带上 <code>[常见问题]</code>，
+              让模型知道这段话的出处
+            </div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="btnPreviewSplit">🔍 预览切分效果</button>
+          <button class="btn btn-primary" id="btnSaveRag">💾 保存 RAG 设置</button>
+        </div>
+        <div class="alert alert-success" id="ragOk"></div>
+        <div class="alert alert-error" id="ragErr"></div>
+      </div>
+
+      <div class="card" id="splitPreviewCard" style="display:none;">
+        <h3>切分预览</h3>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px;color:#374151;font-weight:500;">选择要预览的内容</label>
+          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+            <select id="previewDocSelect" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+              <option value="">（粘贴文本）</option>
+            </select>
+            <button class="btn btn-secondary" id="btnRunPreview">重新预览</button>
+          </div>
+          <textarea id="previewText" rows="4" placeholder="在这里粘贴一段文本试试切分效果…"
+                    style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:13px;"></textarea>
+        </div>
+        <div id="splitStats" style="font-size:13px;color:#374151;margin-bottom:12px;"></div>
+        <div id="splitChunks" style="max-height:520px;overflow-y:auto;"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-documents">
+      <h2>知识文档</h2>
+      <p class="desc">上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。</p>
+      <div class="card">
+        <h3>上传新文档</h3>
+        <div class="dropzone" id="dropzone">
+          <p style="font-size:32px;margin:0;">📤</p>
+          <p>拖拽文件到这里，或 <strong>点击选择</strong></p>
+          <p style="font-size:12px;">支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB</p>
+        </div>
+        <input type="file" id="fileInput" accept=".txt,.md,.markdown,.docx,.xlsx,.pdf" style="display:none;" />
+        <div class="alert" id="upAlert"></div>
+      </div>
+      <div class="card">
+        <h3>已上传文档</h3>
+        <div id="docsContainer">
+          <div class="empty">加载中…</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-agent">
+      <h2>客服信息</h2>
+      <p class="desc">设置客服的名称、欢迎语、联系方式等。</p>
+      <div class="card">
+        <div class="form-row">
+          <div class="form-field">
+            <label>客服名称</label>
+            <input type="text" id="agentName" placeholder="智能客服小助手" />
+          </div>
+          <div class="form-field">
+            <label>头像 URL (可选)</label>
+            <input type="text" id="agentAvatar" placeholder="https://..." />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>联系电话</label>
+            <input type="text" id="agentPhone" placeholder="400-xxx-xxxx" />
+          </div>
+          <div class="form-field">
+            <label>联系邮箱</label>
+            <input type="text" id="agentEmail" placeholder="service@example.com" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field full">
+            <label>欢迎语</label>
+            <textarea id="agentWelcome" rows="2" placeholder="您好，请问有什么可以帮您？"></textarea>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnSaveAgent">💾 保存</button>
+        </div>
+        <div class="alert alert-success" id="agentOk"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-chat">
+      <h2>聊天预览</h2>
+      <p class="desc">在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。</p>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+          <button class="btn btn-secondary" id="btnReloadChat">🔄 重新加载</button>
+          <button class="btn btn-secondary" id="btnOpenChatNewTab">↗︎ 在新标签页打开</button>
+          <span style="color:#6b7280;font-size:12px;" id="chatStatus"></span>
+        </div>
+        <div class="chat-frame" id="chatFrameBox">
+          <iframe id="chatFrame" title="客服组件预览"
+                  style="width:100%;height:100%;border:0;display:block;"></iframe>
+        </div>
+        <div class="alert alert-info" id="chatTips" style="display:block;margin-top:12px;">
+          💡 提示：知识库里没有相关内容时，客服会回答「抱歉，知识库中没有相关信息，我无法回答。」——
+          这是 RAG 的预期行为。先到「知识文档」上传并入库文档，再来提问。
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-embed">
+      <h2>嵌入指南</h2>
+      <p class="desc">把你的智能客服嵌入到任何网站、小程序或桌面应用中。</p>
+      <div class="card">
+        <h3>方式 1：&lt;script&gt; 标签嵌入（最简单）</h3>
+        <p style="color:#6b7280;font-size:13px;">把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：</p>
+        <pre style="background:#1f2937;color:#d1d5db;padding:16px;border-radius:6px;overflow-x:auto;font-size:12px;"><code>&lt;script src="https://your-cdn.com/customer-service.js?v=1"&gt;&lt;/script&gt;
+&lt;script&gt;
+  CustomerService.init({
+    apiUrl: '<span id="embedApiUrl">http://localhost:8000</span>',
+    accent: '#0a66c2',
+    position: 'right',
+    enableUpload: true,
+  });
+&lt;/script&gt;</code></pre>
+        <p style="color:#6b7280;font-size:12px;margin-top:8px;">
+          💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置，
+          改一次对所有已嵌入的站点生效。<br>
+          💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。
+        </p>
+        <button class="btn btn-secondary" onclick="copyEmbedCode()">📋 复制代码</button>
+      </div>
+      <div class="card">
+        <h3>方式 2：iframe 嵌入（完全隔离）</h3>
+        <pre style="background:#1f2937;color:#d1d5db;padding:16px;border-radius:6px;overflow-x:auto;font-size:12px;"><code>&lt;iframe src="<span id="embedIframeUrl">http://localhost:8000/embed</span>"
+        style="position:fixed;right:20px;bottom:20px;
+               width:400px;height:636px;border:0;background:transparent;"&gt;
+&lt;/iframe&gt;</code></pre>
+        <p style="color:#6b7280;font-size:13px;">
+          <code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20），
+          给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。
+        </p>
+      </div>
+      <div class="card">
+        <h3>方式 3：微信 / 支付宝小程序</h3>
+        <p style="color:#6b7280;font-size:13px;">小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：</p>
+        <pre style="background:#1f2937;color:#d1d5db;padding:16px;border-radius:6px;overflow-x:auto;font-size:12px;"><code>&lt;web-view src="https://your-chat-host.com/?api=<span id="embedApiUrl2">http://localhost:8000</span>" /&gt;</code></pre>
+      </div>
+      <div class="card">
+        <h3>Widget 配置文件</h3>
+        <p style="color:#6b7280;font-size:13px;">直接下载：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依赖）</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ─── 打赏弹窗 ───────────────────────────────────────────
+     顺序按用户偏好：微信 → 支付宝 → QQ，微信默认选中。 -->
+<div class="modal-mask" id="donateMask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="donateTitle">
+    <div class="modal-head">
+      <h3 id="donateTitle">☕ 打赏支持</h3>
+      <button class="modal-close" id="donateClose" aria-label="关闭">×</button>
+    </div>
+    <p class="modal-desc">
+      这个项目是免费开源的。如果它帮你省下了时间，可以请作者喝杯咖啡 —— 完全自愿。
+    </p>
+    <div class="pay-tabs" id="payTabs">
+      <button class="pay-tab active" data-pay="wechat">
+        <span class="pay-tab-ico wechat">💬</span> 微信
+      </button>
+      <button class="pay-tab" data-pay="alipay">
+        <span class="pay-tab-ico alipay">🅰</span> 支付宝
+      </button>
+      <button class="pay-tab" data-pay="qq">
+        <span class="pay-tab-ico qq">🐧</span> QQ
+      </button>
+    </div>
+    <div class="qr-box">
+      <img id="qrImg" src="/assets/wechat.png" alt="微信赞赏码" />
+      <div class="qr-hint" id="qrHint">用微信扫一扫</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 检测更新弹窗 ───────────────────────────────────── -->
+<div class="modal-mask" id="updateMask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+    <div class="modal-head">
+      <h3 id="updateTitle">⬆︎ 检测更新</h3>
+      <button class="modal-close" id="updateClose" aria-label="关闭">×</button>
+    </div>
+    <div id="updateBody"></div>
+  </div>
+</div>
+
+<script>
+/* ========================================================================
+   Admin UI Logic
+   ======================================================================== */
+const API = (() => {
+  const url = new URLSearchParams(location.search).get('api') || localStorage.getItem('cs_admin_api') || 'http://localhost:8000';
+  localStorage.setItem('cs_admin_api', url);
+  document.getElementById('apiUrlDisplay').textContent = url;
+  document.getElementById('embedApiUrl').textContent = url;
+  document.getElementById('embedApiUrl2').textContent = url;
+  document.getElementById('embedIframeUrl').textContent = url + '/embed';
+
+  async function request(path, opts = {}) {
+    const init = Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts);
+    if (init.body && typeof init.body !== 'string') init.body = JSON.stringify(init.body);
+    const r = await fetch(url.replace(/\/+$/, '') + path, init);
+    const text = await r.text();
+    let data;
+    try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
+    if (!r.ok) {
+      const msg = (data && data.error && data.error.message) || (typeof data === 'string' ? data : ('HTTP ' + r.status));
+      const err = new Error(msg);
+      err.status = r.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  }
+  return { url, request };
+})();
+
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('page-' + el.dataset.page).classList.add('active');
+    if (el.dataset.page === 'documents') loadDocs();
+    if (el.dataset.page === 'dashboard') loadDashboard();
+    if (el.dataset.page === 'chat') mountChat();
+  });
+});
+
+const connStatus = document.getElementById('connStatus');
+function setConn(state, label, detail) {
+  connStatus.className = 'conn-status ' + state;
+  connStatus.querySelector('.conn-text').textContent = label;
+  // Long messages ("Failed to fetch", stack-ish text) go in the tooltip.
+  // Putting them inline used to stretch the row and push the status pill
+  // up against the page title.
+  connStatus.title = detail || label;
+}
+async function ping() {
+  setConn('checking', '检查中…');
+  try {
+    await API.request('/health');
+    setConn('ok', '后端在线');
+  } catch (e) {
+    setConn('err', '后端离线', '后端离线：' + e.message + '\n请确认服务已启动，且 API 地址正确。');
+  }
+}
+ping();
+setInterval(ping, 15000);
+
+function $(id) { return document.getElementById(id); }
+function showAlert(el, msg, type = 'success') {
+  el.className = 'alert alert-' + type + ' show';
+  el.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 5000);
+}
+function clearAlert(el) { el.classList.remove('show'); }
+
+/* ----------- First-run wizard ----------- */
+let LAST_STATUS = null;
+async function checkInit() {
+  try {
+    const s = await API.request('/api/admin/status');
+    LAST_STATUS = s;
+    renderWizard(s);
+    return s;
+  } catch (e) {
+    // Backend not reachable — banner shown by ping()
+    console.warn('status check failed', e);
+    return null;
+  }
+}
+
+function renderWizard(s) {
+  const banner = $('wizardBanner');
+  if (!s) {
+    banner.classList.remove('show', 'ok');
+    return;
+  }
+  if (s.ready) {
+    // System OK, but show a "you still need API key" hint if applicable.
+    const d = s.details || {};
+    const missingKey = !d.llm_api_key_set || !d.embedding_api_key_set;
+    if (missingKey) {
+      banner.classList.add('show');
+      banner.classList.remove('ok');
+      $('wizardTitle').textContent = '💡 还差最后一步：填入 API Key';
+      const items = [];
+      if (!d.llm_api_key_set) items.push('<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>');
+      if (!d.embedding_api_key_set) items.push('<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>');
+      $('wizardBody').innerHTML = `
+        <ul>${items.join('')}</ul>
+        <p style="margin:8px 0;font-size:13px;">前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。</p>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="showPage('llm')">⚙️ 去配置 API Key</button>
+          <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+        </div>`;
+      rebindRecheck();
+    } else {
+      banner.classList.remove('show');
+    }
+  } else {
+    banner.classList.add('show');
+    banner.classList.remove('ok');
+    $('wizardTitle').textContent = '⚠️ 检测到系统未完成初始化';
+    $('wizardBody').innerHTML = `
+      <p style="margin:8px 0;color:#78350f;font-size:13px;">系统检测到以下问题：</p>
+      <ul>${s.issues.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
+      <p style="margin:8px 0;color:#78350f;font-size:13px;">点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。</p>
+      <div class="actions">
+        <button class="btn btn-primary" id="btnInit">🚀 一键初始化</button>
+        <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+      </div>`;
+    rebindInit();
+    rebindRecheck();
+  }
+}
+
+function rebindInit() {
+  const btn = $('btnInit');
+  if (btn) btn.addEventListener('click', runInit);
+}
+function rebindRecheck() {
+  const btn = $('btnRecheck');
+  if (btn) btn.addEventListener('click', () => checkInit().then(refreshAfterInit));
+}
+
+async function runInit() {
+  const btn = $('btnInit');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>正在初始化…';
+  try {
+    const r = await API.request('/api/admin/init', { method: 'POST' });
+    if (r.ok) {
+      // Show success message inside the banner
+      const banner = $('wizardBanner');
+      banner.classList.add('ok');
+      banner.classList.remove('show');
+      // re-render with success content
+      banner.classList.add('show');
+      $('wizardTitle').textContent = '🎉 初始化完成！';
+      $('wizardBody').innerHTML = `
+        <p style="margin:8px 0;color:#065f46;font-size:13px;">${escapeHtml(r.message)}</p>
+        <ul style="color:#064e3b;">
+          ${r.actions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
+        </ul>
+        <p style="margin:8px 0;color:#065f46;font-size:13px;"><strong>下一步：</strong>前往「模型配置」填入 API Key 即可使用。</p>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="showPage('llm')">⚙️ 去配置 API Key</button>
+          <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+        </div>`;
+      rebindRecheck();
+      // Refresh data on the page silently
+      setTimeout(() => {
+        loadConfig().catch(() => {});
+        loadDocs().catch(() => {});
+      }, 100);
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '🚀 一键初始化';
+    alert('初始化失败：' + e.message);
+  }
+}
+
+function showPage(name) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const nav = document.querySelector(`.nav-item[data-page="${name}"]`);
+  if (nav) nav.classList.add('active');
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  if (name === 'documents') loadDocs();
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'chat') mountChat();
+}
+
+function refreshAfterInit(s) {
+  if (!s) return;
+  if (s.ready) {
+    // re-render banner
+    renderWizard(s);
+  }
+}
+
+let PROVIDERS = [];
+let CONFIG_CACHE = null;
+
+const PROTOCOL_LABELS = {
+  openai: 'OpenAI 兼容 (/chat/completions)',
+  anthropic: 'Anthropic 兼容 (/messages)',
+};
+
+async function loadProviders() {
+  const data = await API.request('/api/config/providers');
+  PROVIDERS = data.providers;
+  const sel = $('llmProvider');
+  sel.innerHTML = '';
+
+  const preset = PROVIDERS.filter(p => !p.is_custom);
+  const custom = PROVIDERS.filter(p => p.is_custom);
+
+  const addGroup = (label, items) => {
+    if (!items.length) return;
+    const og = document.createElement('optgroup');
+    og.label = label;
+    items.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.code;
+      // Protocol is shown by the adjacent dropdown — don't repeat it here.
+      o.textContent = p.display_name;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  };
+  addGroup('厂商', preset);
+  addGroup('自定义 / 自建', custom);
+
+  sel.addEventListener('change', () => onProviderChanged());
+  $('llmProtocol').addEventListener('change', () => onProtocolChanged());
+  $('llmModelSelect').addEventListener('change', () => {
+    const v = $('llmModelSelect').value;
+    if (v) $('llmModel').value = v;
+  });
+  $('btnRefreshModels').addEventListener('click', () => refreshModelList({ manual: true }));
+}
+
+function currentProvider() {
+  return PROVIDERS.find(x => x.code === $('llmProvider').value) || null;
+}
+
+function currentEndpoint() {
+  const p = currentProvider();
+  if (!p) return null;
+  const proto = $('llmProtocol').value;
+  return (p.endpoints || []).find(e => e.protocol === proto) || p.endpoints?.[0] || null;
+}
+
+/** Rebuild the protocol dropdown for the selected vendor. Defaults to openai. */
+function renderProtocolOptions(preferred) {
+  const p = currentProvider();
+  const sel = $('llmProtocol');
+  sel.innerHTML = '';
+  const protos = p?.protocols?.length ? p.protocols : ['openai', 'anthropic'];
+  protos.forEach(proto => {
+    const o = document.createElement('option');
+    o.value = proto;
+    o.textContent = PROTOCOL_LABELS[proto] || proto;
+    sel.appendChild(o);
+  });
+  // Prefer the saved value, else OpenAI (the common case), else whatever exists.
+  const want = [preferred, 'openai', protos[0]].find(x => x && protos.includes(x));
+  sel.value = want;
+  $('protocolHint').textContent = protos.length > 1
+    ? `该厂商支持 ${protos.length} 种协议，切换会自动更新 Base URL`
+    : '该厂商仅支持这一种协议';
+}
+
+/** Vendor dropdown changed → refill protocol, base URL, model, then fetch models. */
+function onProviderChanged() {
+  const p = currentProvider();
+  if (!p) return;
+  renderProtocolOptions('openai');
+  applyEndpointDefaults({ force: true });
+  syncCustomHints();
+  refreshModelList({ auto: true });
+}
+
+/** Protocol dropdown changed → swap base URL + default model for that protocol. */
+function onProtocolChanged() {
+  applyEndpointDefaults({ force: true });
+  syncCustomHints();
+  refreshModelList({ auto: true });
+}
+
+/** Push the selected (vendor, protocol) endpoint's base URL + model into the form. */
+function applyEndpointDefaults({ force = false } = {}) {
+  const p = currentProvider();
+  const ep = currentEndpoint();
+  if (!p) return;
+
+  if (p.is_custom) {
+    if (force) {
+      // Clear values that came from a concrete vendor's preset.
+      const looksPreset = PROVIDERS.some(
+        x => !x.is_custom && (x.endpoints || []).some(e => e.base_url && e.base_url === $('llmBaseUrl').value)
+      );
+      if (looksPreset) { $('llmBaseUrl').value = ''; $('llmModel').value = ''; }
+    }
+  } else if (ep) {
+    if (force || !$('llmBaseUrl').value) $('llmBaseUrl').value = ep.base_url || '';
+    if (force || !$('llmModel').value) $('llmModel').value = ep.default_model || '';
+  }
+
+  // Embedding defaults: only fill blanks, never clobber.
+  if (!p.is_custom && ep && !$('embBaseUrl').value) $('embBaseUrl').value = ep.base_url || '';
+  if (!$('embModel').value && p.default_embedding_model) $('embModel').value = p.default_embedding_model;
+  $('embModelHint').textContent = p.default_embedding_model
+    ? `该厂商默认 embedding 模型：${p.default_embedding_model}`
+    : '该厂商未登记 embedding 模型，可填其他厂商的（Key / URL 要一致）';
+}
+
+function syncCustomHints() {
+  const p = currentProvider();
+  if (!p) return;
+  const custom = !!p.is_custom;
+  $('llmBaseUrlReq').style.display = custom ? 'inline' : 'none';
+  $('llmModelReq').style.display = custom ? 'inline' : 'none';
+
+  // Flag entries whose preset values haven't been confirmed against the
+  // vendor's own docs, so nobody trusts a guessed URL with real billing.
+  const hint = $('providerHint');
+  if (p.verified === false) {
+    hint.innerHTML = `<span style="color:#b45309;">⚠ 此厂商的预填地址/模型未经核实，请对照厂商文档确认后再保存。</span>`
+                   + (p.notes ? `<br>${escapeHtml(p.notes)}` : '');
+  } else {
+    hint.textContent = p.notes || '';
+  }
+
+  const ep = currentEndpoint();
+  $('llmModelHint').textContent = custom
+    ? '自定义厂商：填服务商给你的模型名，或点 🔄 尝试自动获取'
+    : (ep?.default_model ? `默认模型：${ep.default_model}（可从上方下拉换）` : '上方下拉选择，或手动输入');
+}
+
+/**
+ * Ask the backend to list the vendor's models.
+ *
+ * The backend falls back to a curated list when the vendor can't be queried
+ * (missing key, no listing endpoint, network error), so this is safe to call
+ * on every vendor/protocol change.
+ */
+let modelFetchSeq = 0;
+async function refreshModelList({ auto = false, manual = false } = {}) {
+  const seq = ++modelFetchSeq;
+  const sel = $('llmModelSelect');
+  const loading = $('modelLoading');
+  loading.style.display = 'inline';
+  sel.innerHTML = '<option value="">（获取中…）</option>';
+
+  const body = {
+    provider: $('llmProvider').value,
+    protocol: $('llmProtocol').value,
+    base_url: $('llmBaseUrl').value.trim(),
+  };
+  const typedKey = $('llmApiKey').value.trim();
+  if (typedKey) body.api_key = typedKey;
+
+  try {
+    const r = await API.request('/api/models/available', { method: 'POST', body });
+    if (seq !== modelFetchSeq) return;   // a newer request superseded this one
+    const models = r.models || [];
+    sel.innerHTML = '';
+    if (!models.length) {
+      sel.innerHTML = '<option value="">（无法获取，请手动输入）</option>';
+    } else {
+      const ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = r.source === 'api'
+        ? `— 厂商接口返回 ${models.length} 个模型 —`
+        : `— 内置推荐 ${models.length} 个 —`;
+      sel.appendChild(ph);
+      models.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m;
+        o.textContent = m;
+        sel.appendChild(o);
+      });
+      // Keep the dropdown in sync with the text field when they match.
+      const cur = $('llmModel').value.trim();
+      if (cur && models.includes(cur)) sel.value = cur;
+    }
+    if (manual) {
+      showAlert($('llmOk'), (r.source === 'api' ? '✅ ' : 'ℹ️ ') + r.message,
+                r.source === 'api' ? 'success' : 'info');
+    }
+  } catch (e) {
+    if (seq !== modelFetchSeq) return;
+    sel.innerHTML = '<option value="">（获取失败，请手动输入）</option>';
+    if (manual) showAlert($('llmErr'), '❌ 获取模型列表失败：' + e.message, 'error');
+  } finally {
+    if (seq === modelFetchSeq) loading.style.display = 'none';
+  }
+}
+
+$('btnResetLlmDefaults').addEventListener('click', () => {
+  const p = currentProvider();
+  const ep = currentEndpoint();
+  if (!p) return;
+  if (p.is_custom) {
+    showAlert($('llmErr'), '自定义厂商没有默认值，请手动填写 Base URL 和模型名。', 'error');
+    return;
+  }
+  if (ep) {
+    $('llmBaseUrl').value = ep.base_url || '';
+    $('llmModel').value = ep.default_model || '';
+  }
+  showAlert($('llmOk'), `✅ 已填入 ${p.display_name} · ${$('llmProtocol').value} 的默认值（记得点保存）`);
+});
+
+async function loadConfig() {
+  const c = await API.request('/api/config');
+  CONFIG_CACHE = c;
+
+  // --- 对话模型 ---
+  $('llmProvider').value = c.model_provider || 'deepseek';
+  // If the saved provider code was merged/renamed, the option won't exist —
+  // fall back to the first entry so the form isn't left blank.
+  if (!$('llmProvider').value) $('llmProvider').selectedIndex = 0;
+  renderProtocolOptions(c.protocol || 'openai');
+  $('llmApiKey').value = '';
+  $('llmApiKey').placeholder = c.model_api_key ? `已保存 ${c.model_api_key}（留空则不修改）` : 'sk-xxxxxxxx';
+  $('llmBaseUrl').value = c.model_base_url || '';
+  $('llmModel').value = c.model_name || '';
+  $('llmTemp').value = c.temperature ?? 0.3;
+  $('llmTempVal').textContent = (c.temperature ?? 0.3).toFixed(2);
+
+  // --- 向量模型 ---
+  const emb = c.embedding || {};
+  $('embApiKey').value = '';
+  $('embApiKey').placeholder = emb.api_key ? `已保存 ${emb.api_key}（留空则不修改）` : 'sk-xxxxxxxx';
+  $('embBaseUrl').value = emb.base_url || '';
+  $('embModel').value = emb.model || '';
+  $('embDim').value = emb.dim || 1024;
+
+  // Fill blanks from the vendor spec without overwriting saved values.
+  applyEndpointDefaults({ force: false });
+  syncCustomHints();
+
+  // --- 向量库 ---
+  $('vecProvider').value = c.vector_db?.provider || 'chroma';
+  $('vecCollection').value = c.vector_db?.collection || 'knowledge_base';
+  $('vecHost').value = c.vector_db?.host || 'localhost';
+  $('vecPort').value = c.vector_db?.port || 6333;
+  $('vecDim').value = c.vector_db?.embedding_dimension || 1024;
+  $('vecPersist').value = c.vector_db?.persist_directory || './data/chroma_db';
+  $('vecMilvusUri').value = c.vector_db?.milvus_uri || './data/milvus.db';
+  $('vecMilvusToken').value = '';
+  $('vecMilvusToken').placeholder = c.vector_db?.milvus_token ? '已保存（留空则不修改）' : '留空即可';
+  $('vecMilvusDbName').value = c.vector_db?.milvus_db_name || '';
+  toggleQdrantFields();
+
+  // --- RAG ---
+  $('ragTopK').value = c.rag?.top_k ?? 5;
+  $('ragThreshold').value = c.rag?.similarity_threshold ?? 0.5;
+  $('ragThresholdVal').textContent = (c.rag?.similarity_threshold ?? 0.5).toFixed(2);
+  $('ragChunkSize').value = c.rag?.chunk_size ?? 500;
+  $('ragChunkOverlap').value = c.rag?.chunk_overlap ?? 100;
+  $('ragStrategy').value = c.rag?.chunk_strategy || 'structure';
+  $('ragPrefixHeading').checked = c.rag?.chunk_prefix_heading !== false;
+  $('ragAllowModelKnowledge').checked = c.rag?.allow_model_knowledge === true;
+  syncStrategyHint();
+  syncAllowHint();
+
+  // --- 客服信息 ---
+  $('agentName').value = c.name || '';
+  $('agentAvatar').value = c.avatar || '';
+  $('agentPhone').value = c.contact_phone || '';
+  $('agentEmail').value = c.contact_email || '';
+  $('agentWelcome').value = c.welcome_message || '';
+
+  // --- 概览卡片 ---
+  $('dashModel').innerHTML = `<div>${escapeHtml(c.model_provider || '—')} / ${escapeHtml(c.model_name || '—')}</div><div style="font-size:12px;color:#9ca3af;margin-top:4px;">${escapeHtml(c.model_base_url || '—')}</div>`;
+  $('dashVector').textContent = (c.vector_db?.provider || '—') + ' · ' + (c.vector_db?.collection || '—');
+}
+
+function toggleQdrantFields() {
+  const p = $('vecProvider').value;
+  $('qdrantFields').style.display        = p === 'qdrant' ? 'flex'  : 'none';
+  $('milvusFields').style.display        = p === 'milvus' ? 'block' : 'none';
+  $('chromaPersistField').style.display  = p === 'chroma' ? 'block' : 'none';
+  $('vecDimStrict').style.display        = p === 'milvus' ? 'inline' : 'none';
+  const hints = {
+    chroma: '本地文件持久化，开箱即用，无需额外服务。',
+    qdrant: '需要先启动 Qdrant 服务：docker compose up -d qdrant',
+    milvus: 'URI 填 .db 路径 → Milvus Lite（零安装）；填 http://host:19530 → 连服务器。',
+  };
+  $('vecProviderHint').textContent = hints[p] || '';
+}
+$('vecProvider').addEventListener('change', toggleQdrantFields);
+
+$('llmTemp').addEventListener('input', e => $('llmTempVal').textContent = (+e.target.value).toFixed(2));
+$('ragThreshold').addEventListener('input', e => $('ragThresholdVal').textContent = (+e.target.value).toFixed(2));
+
+/** Collect the 对话模型 form into a patch, or null if validation fails. */
+function llmPatch(alertEl) {
+  const p = currentProvider();
+  const baseUrl = $('llmBaseUrl').value.trim();
+  const model = $('llmModel').value.trim();
+  if (!baseUrl) {
+    showAlert(alertEl, '❌ Base URL 不能为空' + (p?.is_custom ? '（自定义厂商必须手填）' : ''), 'error');
+    return null;
+  }
+  if (!model) {
+    showAlert(alertEl, '❌ 模型名称不能为空', 'error');
+    return null;
+  }
+  const patch = {
+    model_provider: $('llmProvider').value,
+    protocol: $('llmProtocol').value,
+    model_name: model,
+    model_base_url: baseUrl,
+    temperature: +$('llmTemp').value,
+    active_provider_code: $('llmProvider').value,
+  };
+  const key = $('llmApiKey').value.trim();
+  if (key) patch.model_api_key = key;
+  return patch;
+}
+
+$('btnSave').addEventListener('click', async () => {
+  clearAlert($('llmOk')); clearAlert($('llmErr'));
+  const patch = llmPatch($('llmErr'));
+  if (!patch) return;
+  try {
+    const cur = await API.request('/api/config');
+    await API.request('/api/config', { method: 'PUT', body: { ...cur, ...patch } });
+    showAlert($('llmOk'), '✅ 对话模型已保存，立即生效');
+    $('llmApiKey').value = '';
+    await loadConfig();
+    await checkInit();
+  } catch (e) {
+    showAlert($('llmErr'), '❌ 保存失败：' + e.message, 'error');
+  }
+});
+
+$('btnTest').addEventListener('click', async () => {
+  clearAlert($('llmOk')); clearAlert($('llmErr'));
+  const patch = llmPatch($('llmErr'));
+  if (!patch) return;
+  showAlert($('llmOk'), '⏳ 正在测试连接…', 'info');
+  try {
+    // Persist first so the backend tests exactly what's on screen.
+    const cur = await API.request('/api/config');
+    await API.request('/api/config', { method: 'PUT', body: { ...cur, ...patch } });
+    $('llmApiKey').value = '';
+    const r = await API.request('/api/models/test', { method: 'POST', body: {} });
+    if (r.ok) {
+      showAlert($('llmOk'), '✅ ' + r.message, 'success');
+      await loadConfig();
+      await checkInit();
+    } else {
+      showAlert($('llmErr'), '❌ ' + r.message, 'error');
+    }
+  } catch (e) {
+    showAlert($('llmErr'), '❌ ' + e.message, 'error');
+  }
+});
+
+/* ----------- 向量模型 (embedding) ----------- */
+$('btnCopyFromLlm').addEventListener('click', () => {
+  $('embBaseUrl').value = $('llmBaseUrl').value;
+  const llmKey = $('llmApiKey').value.trim();
+  if (llmKey) {
+    $('embApiKey').value = llmKey;
+    showAlert($('embOk'), '✅ 已复用对话模型的 Base URL 和你刚输入的 Key');
+  } else {
+    showAlert($('embOk'), 'ℹ️ 已复用 Base URL。Key 请手动输入（已保存的密钥读不出来）', 'info');
+  }
+});
+
+function embPatch(alertEl) {
+  const baseUrl = $('embBaseUrl').value.trim();
+  const model = $('embModel').value.trim();
+  if (!baseUrl) { showAlert(alertEl, '❌ 向量模型 Base URL 不能为空', 'error'); return null; }
+  if (!model)   { showAlert(alertEl, '❌ 向量模型名称不能为空', 'error'); return null; }
+  const emb = {
+    provider: 'openai_compatible',
+    base_url: baseUrl,
+    model: model,
+    dim: +$('embDim').value || 1024,
+  };
+  const key = $('embApiKey').value.trim();
+  if (key) emb.api_key = key;
+  return emb;
+}
+
+$('btnSaveEmb').addEventListener('click', async () => {
+  clearAlert($('embOk')); clearAlert($('embErr'));
+  const emb = embPatch($('embErr'));
+  if (!emb) return;
+  try {
+    const cur = await API.request('/api/config');
+    await API.request('/api/config', { method: 'PUT', body: { ...cur, embedding: { ...(cur.embedding || {}), ...emb } } });
+    showAlert($('embOk'), '✅ 向量模型已保存');
+    $('embApiKey').value = '';
+    await loadConfig();
+    await checkInit();
+  } catch (e) {
+    showAlert($('embErr'), '❌ 保存失败：' + e.message, 'error');
+  }
+});
+
+$('btnTestEmb').addEventListener('click', async () => {
+  clearAlert($('embOk')); clearAlert($('embErr'));
+  const emb = embPatch($('embErr'));
+  if (!emb) return;
+  showAlert($('embOk'), '⏳ 正在测试并探测维度…', 'info');
+  try {
+    const cur = await API.request('/api/config');
+    await API.request('/api/config', { method: 'PUT', body: { ...cur, embedding: { ...(cur.embedding || {}), ...emb } } });
+    $('embApiKey').value = '';
+    const r = await API.request('/api/models/test-embedding', { method: 'POST', body: {} });
+    if (r.ok) {
+      showAlert($('embOk'), '✅ ' + r.message, 'success');
+      // Auto-correct the dimension fields to the probed value.
+      if (r.dim && r.dim !== r.configured_dim) {
+        $('embDim').value = r.dim;
+        $('vecDim').value = r.dim;
+        const cur2 = await API.request('/api/config');
+        await API.request('/api/config', {
+          method: 'PUT',
+          body: {
+            ...cur2,
+            embedding: { ...(cur2.embedding || {}), dim: r.dim },
+            vector_db: { ...(cur2.vector_db || {}), embedding_dimension: r.dim },
+          },
+        });
+        showAlert($('embOk'), `✅ ${r.message} — 已自动把维度改为 ${r.dim}`, 'success');
+      }
+      await loadConfig();
+      await checkInit();
+    } else {
+      showAlert($('embErr'), '❌ ' + r.message, 'error');
+    }
+  } catch (e) {
+    showAlert($('embErr'), '❌ ' + e.message, 'error');
+  }
+});
+
+$('btnSaveVec').addEventListener('click', async () => {
+  try {
+    const cur = await API.request('/api/config');
+    const vec = {
+      ...(cur.vector_db || {}),
+      provider: $('vecProvider').value,
+      collection: $('vecCollection').value,
+      host: $('vecHost').value,
+      port: +$('vecPort').value,
+      embedding_dimension: +$('vecDim').value,
+      persist_directory: $('vecPersist').value,
+      milvus_uri: $('vecMilvusUri').value,
+      milvus_db_name: $('vecMilvusDbName').value,
+    };
+    const tok = $('vecMilvusToken').value.trim();
+    if (tok) vec.milvus_token = tok;
+    await API.request('/api/config', { method: 'PUT', body: { ...cur, vector_db: vec } });
+    $('vecMilvusToken').value = '';
+    showAlert($('vecInfo'), '✅ 已保存。注意：切换向量库需要重启后端 + 重新入库文档。', 'info');
+    await loadConfig();
+  } catch (e) {
+    showAlert($('vecInfo'), '❌ ' + e.message, 'error');
+  }
+});
+
+/* ----------- 回答策略 ----------- */
+function syncAllowHint() {
+  const on = $('ragAllowModelKnowledge').checked;
+  $('ragAllowHint').innerHTML = on
+    ? '<span style="color:#b45309;">已开启：</span>检索不到内容时，AI 会用自己的知识回答，'
+      + '不会再说「知识库中没有相关信息」。<br>'
+      + '⚠ 这类回答<strong>不保证准确</strong>（可能过时或编造），且用户无法区分哪句来自你的资料。'
+      + '涉及价格、政策、承诺等场景建议关闭。'
+    : '<span style="color:#065f46;">已关闭（默认）：</span>只依据知识库回答，检索不到就明确说「没有相关信息」。'
+      + '每句话都能追溯到你上传的文档。';
+}
+$('ragAllowModelKnowledge').addEventListener('change', syncAllowHint);
+
+$('btnSaveAnswerMode').addEventListener('click', async () => {
+  clearAlert($('answerModeOk')); clearAlert($('answerModeErr'));
+  try {
+    const cur = await API.request('/api/config');
+    await API.request('/api/config', {
+      method: 'PUT',
+      body: {
+        ...cur,
+        rag: {
+          ...(cur.rag || {}),
+          allow_model_knowledge: $('ragAllowModelKnowledge').checked,
+        },
+      },
+    });
+    showAlert($('answerModeOk'),
+      $('ragAllowModelKnowledge').checked
+        ? '✅ 已开启自主回答，立即生效'
+        : '✅ 已关闭自主回答，仅依据知识库回答');
+  } catch (e) {
+    showAlert($('answerModeErr'), '❌ ' + e.message, 'error');
+  }
+});
+
+$('btnSaveRag').addEventListener('click', async () => {
+  clearAlert($('ragOk')); clearAlert($('ragErr'));
+  const size = +$('ragChunkSize').value;
+  const overlap = +$('ragChunkOverlap').value;
+  if (overlap >= size) {
+    showAlert($('ragErr'), `❌ Chunk Overlap (${overlap}) 必须小于 Chunk Size (${size})`, 'error');
+    return;
+  }
+  try {
+    const cur = await API.request('/api/config');
+    const body = {
+      ...cur,
+      rag: {
+        // Spread `cur.rag` first: this handler doesn't own every RAG field
+        // (allow_model_knowledge lives in the 回答策略 card), and replacing the
+        // whole object would silently reset the ones it doesn't render.
+        ...(cur.rag || {}),
+        top_k: +$('ragTopK').value,
+        similarity_threshold: +$('ragThreshold').value,
+        chunk_size: size,
+        chunk_overlap: overlap,
+        chunk_strategy: $('ragStrategy').value,
+        chunk_prefix_heading: $('ragPrefixHeading').checked,
+      },
+    };
+    await API.request('/api/config', { method: 'PUT', body });
+    showAlert($('ragOk'), '✅ RAG 设置已保存。注意：已入库的文档需要重新入库才会按新设置切分。');
+  } catch (e) {
+    showAlert($('ragErr'), '❌ ' + e.message, 'error');
+  }
+});
+
+/* ----------- 切分预览 ----------- */
+const STRATEGY_HINTS = {
+  structure: '识别【章节】、Markdown 标题、第X章、Q&A、Excel 工作表，沿语义边界切分。多数文档用这个。',
+  window: '不看结构，每 N 字硬切一刀。只在文档完全没有标题结构时才需要。',
+};
+function syncStrategyHint() {
+  $('ragStrategyHint').textContent = STRATEGY_HINTS[$('ragStrategy').value] || '';
+}
+$('ragStrategy').addEventListener('change', syncStrategyHint);
+
+$('btnPreviewSplit').addEventListener('click', async () => {
+  $('splitPreviewCard').style.display = 'block';
+  await populatePreviewDocs();
+  runSplitPreview();
+  $('splitPreviewCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+$('btnRunPreview').addEventListener('click', () => runSplitPreview());
+$('previewDocSelect').addEventListener('change', () => runSplitPreview());
+
+async function populatePreviewDocs() {
+  const sel = $('previewDocSelect');
+  const keep = sel.value;
+  try {
+    const docs = await API.request('/api/documents/list');
+    sel.innerHTML = '<option value="">（粘贴文本）</option>';
+    docs.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.id;
+      o.textContent = `${d.filename}（${(d.file_size / 1024).toFixed(1)} KB）`;
+      sel.appendChild(o);
+    });
+    if (keep) sel.value = keep;
+    else if (docs.length) sel.value = docs[0].id;   // default to the newest doc
+  } catch (_) { /* leave the paste-only option */ }
+}
+
+async function runSplitPreview() {
+  const stats = $('splitStats');
+  const box = $('splitChunks');
+  const docId = $('previewDocSelect').value;
+  const text = $('previewText').value.trim();
+  if (!docId && !text) {
+    stats.innerHTML = '<span style="color:#9ca3af;">请选择一个文档，或在下方粘贴文本。</span>';
+    box.innerHTML = '';
+    return;
+  }
+  stats.innerHTML = '<span class="spinner-sm"></span>正在切分…';
+  box.innerHTML = '';
+  try {
+    const r = await API.request('/api/documents/split-preview', {
+      method: 'POST',
+      body: {
+        document_id: docId || undefined,
+        text: docId ? undefined : text,
+        chunk_size: +$('ragChunkSize').value,
+        chunk_overlap: +$('ragChunkOverlap').value,
+        strategy: $('ragStrategy').value,
+        prefix_heading: $('ragPrefixHeading').checked,
+      },
+    });
+    const strategyLabel = r.strategy === 'structure' ? '结构感知' : '固定窗口';
+    stats.innerHTML =
+      `<strong>${escapeHtml(r.source)}</strong> · ${r.total_chars} 字 → ` +
+      `<strong style="color:#3b82f6;">${r.chunk_count} 个片段</strong> · ` +
+      `策略 ${strategyLabel} · 片段长度 最小 ${r.min_chars} / 平均 ${r.avg_chars} / 最大 ${r.max_chars} 字` +
+      (r.truncated ? ' <span style="color:#b45309;">（仅显示前 60 个）</span>' : '');
+
+    box.innerHTML = r.chunks.map(c => `
+      <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin-bottom:8px;background:#fafafa;">
+        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">
+          #${c.index}
+          ${c.heading ? `· <span style="color:#3b82f6;font-weight:600;">${escapeHtml(c.heading)}</span>` : '· <span style="color:#9ca3af;">(无标题)</span>'}
+          · ${c.chars} 字
+        </div>
+        <div style="font-size:13px;white-space:pre-wrap;line-height:1.6;color:#1f2937;">${escapeHtml(c.text)}</div>
+      </div>`).join('');
+  } catch (e) {
+    stats.innerHTML = `<span style="color:#dc2626;">❌ ${escapeHtml(e.message)}</span>`;
+  }
+}
+
+$('btnSaveAgent').addEventListener('click', async () => {
+  clearAlert($('agentOk'));
+  try {
+    const cur = await API.request('/api/config');
+    const body = {
+      ...cur,
+      name: $('agentName').value,
+      avatar: $('agentAvatar').value,
+      contact_phone: $('agentPhone').value,
+      contact_email: $('agentEmail').value,
+      welcome_message: $('agentWelcome').value,
+    };
+    await API.request('/api/config', { method: 'PUT', body });
+    showAlert($('agentOk'), '✅ 客服信息已保存');
+  } catch (e) {
+    showAlert($('agentOk'), '❌ ' + e.message, 'error');
+  }
+});
+
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleUpload(e.target.files[0]);
+  e.target.value = '';
+});
+
+async function handleUpload(file) {
+  const a = $('upAlert');
+  a.className = 'alert alert-info show';
+  a.textContent = `⏳ 正在上传 ${file.name}（${(file.size/1024).toFixed(1)} KB）…`;
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch(API.url + '/api/documents/upload', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error?.message || 'HTTP ' + r.status);
+    a.textContent = `✅ 上传成功：${data.filename} (${data.file_size} 字节)`;
+    a.className = 'alert alert-success show';
+    setTimeout(async () => {
+      a.textContent = `⏳ 正在解析 + embedding + 入库…`;
+      try {
+        const pr = await API.request('/api/documents/process', { method: 'POST', body: { document_id: data.id } });
+        if (pr.status === 'ready') {
+          a.textContent = `✅ 入库成功：${pr.chunk_count} 个片段`;
+          a.className = 'alert alert-success show';
+        } else {
+          a.textContent = `⚠️ 入库失败：${pr.error_message || '未知错误'}`;
+          a.className = 'alert alert-error show';
+        }
+      } catch (e) {
+        a.textContent = `⚠️ 入库失败：${e.message}`;
+        a.className = 'alert alert-error show';
+      }
+      loadDocs();
+      checkInit();
+    }, 500);
+  } catch (e) {
+    a.className = 'alert alert-error show';
+    a.textContent = '❌ ' + e.message;
+  }
+}
+
+async function loadDocs() {
+  const box = $('docsContainer');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try {
+    const docs = await API.request('/api/documents/list');
+    if (!docs.length) {
+      box.innerHTML = '<div class="empty">还没有文档，拖一个文件到上面开始吧。</div>';
+      $('dashDocs').textContent = '0 个文档';
+      stopDocsPolling();
+      return;
+    }
+    let html = '<table><thead><tr><th>文件名</th><th>大小</th><th>分片数</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+    for (const d of docs) {
+      const statusLabel = ({uploaded:'已上传', processing:'处理中', ready:'就绪', failed:'失败'})[d.status] || d.status;
+      const canProcess = (d.status === 'uploaded' || d.status === 'failed');
+      // While ingesting, show real progress instead of a bare "处理中" that
+      // gives no clue whether anything is happening.
+      let pill = statusLabel;
+      if (d.status === 'processing' && d.chunks_total) {
+        const pct = Math.floor((d.chunks_done / d.chunks_total) * 100);
+        pill = `${statusLabel} ${d.chunks_done}/${d.chunks_total} (${pct}%)`;
+      } else if (d.status === 'failed' && d.error_message) {
+        pill = `${statusLabel} · ${escapeHtml(d.error_message.substring(0, 40))}`;
+      }
+      const chunkCell = d.status === 'processing' && d.chunks_total
+        ? `${d.chunks_done} / ${d.chunks_total}`
+        : d.chunk_count;
+      html += `<tr>
+        <td>${escapeHtml(d.filename)}<br><span style="color:#9ca3af;font-size:11px;">${escapeHtml(d.file_md5.substring(0,8))}</span></td>
+        <td>${(d.file_size/1024).toFixed(1)} KB</td>
+        <td>${chunkCell}</td>
+        <td><span class="status-pill status-${d.status}">${pill}</span></td>
+        <td>
+          ${canProcess ? `<button class="btn btn-secondary" onclick="processDoc('${d.id}')">入库</button> ` : ''}
+          <button class="btn btn-danger" onclick="deleteDoc('${d.id}')">删除</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+    const ready = docs.filter(d => d.status === 'ready').length;
+    $('dashDocs').textContent = `${docs.length} 个文档（${ready} 个已入库）`;
+
+    // Auto-refresh only while something is actually in flight.
+    docs.some(d => d.status === 'processing') ? startDocsPolling() : stopDocsPolling();
+  } catch (e) {
+    box.innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`;
+    stopDocsPolling();
+  }
+}
+
+/* Poll the list while an ingest is running so the status isn't a lie. */
+let docsPollTimer = null;
+function startDocsPolling() {
+  if (docsPollTimer) return;
+  docsPollTimer = setInterval(() => {
+    // Pause when the user is looking at another page — no point burning
+    // requests on a table nobody can see.
+    if (!document.getElementById('page-documents').classList.contains('active')) return;
+    loadDocs().catch(() => {});
+  }, 3000);
+}
+function stopDocsPolling() {
+  if (docsPollTimer) { clearInterval(docsPollTimer); docsPollTimer = null; }
+}
+
+async function processDoc(id) {
+  // Kick off ingestion and let the poller report progress. A large knowledge
+  // base takes minutes; awaiting the whole thing would look like a hang and
+  // eventually hit the browser's request timeout.
+  startDocsPolling();
+  API.request('/api/documents/process', { method: 'POST', body: { document_id: id } })
+    .then(() => loadDocs())
+    .catch(e => { alert('入库失败：' + e.message); loadDocs(); });
+  setTimeout(loadDocs, 600);
+}
+async function deleteDoc(id) {
+  if (!confirm('确认删除该文档及其向量？')) return;
+  try {
+    await API.request('/api/documents/' + id, { method: 'DELETE' });
+    loadDocs();
+  } catch (e) {
+    alert('删除失败：' + e.message);
+  }
+}
+
+async function loadDashboard() {
+  try { await loadConfig(); } catch (_) {}
+  try { await loadDocs(); } catch (_) {}
+}
+
+/**
+ * Load the real widget inside an iframe.
+ *
+ * The widget positions itself with `position: fixed`, so mounting it directly
+ * into this page would make it float over the whole admin UI instead of
+ * staying inside the preview box. An iframe gives it its own viewport — and
+ * exercises the same code path a customer's site would.
+ */
+function mountChat() {
+  const frame = $('chatFrame');
+  const status = $('chatStatus');
+  if (!frame) return;
+  // `bg` paints a backdrop inside the frame: embed.html is transparent by
+  // default (so a real embed doesn't show a colour block), but this preview
+  // pane wants the chat-app look.
+  const src = `embed.html?api=${encodeURIComponent(API.url)}&autoOpen=1&position=left&upload=0&bg=f4f6f9`;
+  // Only reload when the target actually changed, so switching tabs back and
+  // forth doesn't wipe an in-progress conversation.
+  const abs = new URL(src, location.href).href;
+  if (frame.src !== abs) {
+    frame.src = src;
+    status.textContent = '正在加载…';
+    frame.onload = () => { status.textContent = '已加载 · 可以开始提问'; };
+    frame.onerror = () => { status.textContent = '加载失败'; };
+  }
+}
+
+$('btnReloadChat').addEventListener('click', () => {
+  const frame = $('chatFrame');
+  frame.src = 'about:blank';
+  setTimeout(mountChat, 50);
+});
+
+$('btnOpenChatNewTab').addEventListener('click', () => {
+  const url = new URL('embed.html', location.href);
+  url.searchParams.set('api', API.url);
+  url.searchParams.set('autoOpen', '1');
+  window.open(url.href, '_blank');
+});
+
+function copyEmbedCode() {
+  // 不写 title / welcome / avatar —— 让 widget 从 /api/config 拉取，
+  // 这样在管理后台改「客服信息」对所有已嵌入的站点立即生效。
+  const code = `<script src="${API.url.replace(/\/+$/, '')}/widget/customer-service.js?v=1"><\/script>
+<script>
+  CustomerService.init({
+    apiUrl: '${API.url}',
+    accent: '#0a66c2',
+    position: 'right',
+    enableUpload: true,
+  });
+<\/script>`;
+  navigator.clipboard?.writeText(code).then(
+    () => alert('已复制到剪贴板'),
+    () => prompt('复制以下代码：', code)
+  );
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ----------- Boot ----------- */
+/* ==========================================================================
+   顶部工具：检测更新 / 打赏 / GitHub
+   ========================================================================== */
+
+/* ----- 通用弹窗控制 ----- */
+function openModal(id) {
+  $(id).hidden = false;
+  document.body.style.overflow = 'hidden';   // 防止背景滚动
+}
+function closeModal(id) {
+  $(id).hidden = true;
+  document.body.style.overflow = '';
+}
+// 点遮罩关闭（点弹窗内部不关），Esc 关闭
+['donateMask', 'updateMask'].forEach(id => {
+  $(id).addEventListener('click', e => { if (e.target.id === id) closeModal(id); });
+});
+$('donateClose').addEventListener('click', () => closeModal('donateMask'));
+$('updateClose').addEventListener('click', () => closeModal('updateMask'));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal('donateMask'); closeModal('updateMask'); }
+});
+
+/* ----- 打赏 ----- */
+const PAY_METHODS = {
+  wechat: { img: '/assets/wechat.png', label: '微信',   hint: '用微信扫一扫' },
+  alipay: { img: '/assets/alipay.png', label: '支付宝', hint: '用支付宝扫一扫' },
+  qq:     { img: '/assets/qq.png',     label: 'QQ',     hint: '用 QQ 扫一扫' },
+};
+function selectPay(key) {
+  const m = PAY_METHODS[key];
+  if (!m) return;
+  $('qrImg').src = m.img;
+  $('qrImg').alt = m.label + '赞赏码';
+  $('qrHint').textContent = m.hint;
+  $('payTabs').querySelectorAll('.pay-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.pay === key);
+  });
+}
+$('payTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.pay-tab');
+  if (btn) selectPay(btn.dataset.pay);
+});
+$('btnDonate').addEventListener('click', () => {
+  selectPay('wechat');            // 每次打开都回到默认的微信
+  openModal('donateMask');
+});
+
+/* ----- 检测更新 -----
+   后端只做「比对版本 + 返回更新说明」，不会自动改动代码。
+   自动 git pull 会覆盖本地未提交的修改，还可能因依赖变更导致服务起不来，
+   不适合放在一个按钮后面，所以这里给出命令让用户自己决定何时执行。 */
+let updateInfo = null;
+
+async function checkUpdate({ silent = false } = {}) {
+  const btn = $('btnCheckUpdate');
+  if (!silent) { btn.disabled = true; btn.classList.add('spin'); }
+  try {
+    const r = await API.request('/api/admin/version');
+    updateInfo = r;
+    // 有新版就在按钮上点红点，无论是否静默检查
+    $('updateBadge').hidden = !r.has_update;
+    if (r.repo) {
+      $('btnGithub').href = `https://github.com/${r.repo}`;
+      $('btnGithub').hidden = false;
+    } else {
+      $('btnGithub').hidden = true;    // 没配仓库就别放一个死链接
+    }
+    if (!silent) renderUpdateModal(r);
+    return r;
+  } catch (e) {
+    if (!silent) {
+      renderUpdateModal({ ok: false, message: '检查失败：' + e.message, current: '—' });
+    }
+  } finally {
+    btn.disabled = false; btn.classList.remove('spin');
+  }
+}
+
+function renderUpdateModal(r) {
+  const box = $('updateBody');
+  const esc = escapeHtml;
+  let html = '';
+
+  if (r.configured === false) {
+    html = `
+      <p class="modal-desc">还没有配置 GitHub 仓库，无法比对版本。</p>
+      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
+      <p class="modal-desc" style="margin-top:14px;">
+        在 <code>backend/.env</code> 里加上仓库地址后重启即可：
+      </p>
+      <div class="upd-cmd">APP_GITHUB_REPO=owner/repo</div>`;
+  } else if (!r.ok) {
+    html = `
+      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
+      <p class="modal-desc" style="margin-top:14px;color:#991b1b;">${esc(r.message)}</p>`;
+  } else if (r.has_update) {
+    html = `
+      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
+      <div class="upd-row"><span class="k">最新版本</span>
+        <span class="v" style="color:#059669;">${esc(r.latest)} 🎉</span></div>
+      ${r.notes ? `<div class="upd-note">${esc(r.notes)}</div>` : ''}
+      <p class="modal-desc" style="margin-top:14px;">
+        更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。
+        在服务器上执行：
+      </p>
+      <div class="upd-cmd">cd &lt;项目目录&gt;
+git pull
+cd backend &amp;&amp; pip install -r requirements.txt
+# Docker: docker compose -f docker-compose.prod.yml up -d --build
+# systemd: sudo systemctl restart ics</div>
+      <div class="btn-group" style="margin-top:14px;">
+        <button class="btn btn-secondary" id="btnCopyUpdCmd">📋 复制命令</button>
+        ${r.release_url ? `<a class="btn btn-primary" href="${esc(r.release_url)}"
+             target="_blank" rel="noopener noreferrer">查看发布说明 ↗</a>` : ''}
+      </div>`;
+  } else {
+    html = `
+      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
+      <div class="upd-row"><span class="k">最新版本</span><span class="v">${esc(r.latest)}</span></div>
+      <p class="modal-desc" style="margin-top:14px;color:#065f46;">✅ ${esc(r.message)}</p>`;
+  }
+
+  box.innerHTML = html;
+  const copyBtn = $('btnCopyUpdCmd');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const cmd = box.querySelector('.upd-cmd')?.textContent || '';
+      navigator.clipboard?.writeText(cmd).then(
+        () => { copyBtn.textContent = '✓ 已复制'; setTimeout(() => copyBtn.textContent = '📋 复制命令', 1800); },
+        () => prompt('复制以下命令：', cmd)
+      );
+    });
+  }
+  openModal('updateMask');
+}
+
+$('btnCheckUpdate').addEventListener('click', () => checkUpdate());
+
+(async function init() {
+  try { await loadProviders(); } catch (e) { console.warn('providers load failed', e); }
+  try { await loadConfig(); } catch (e) { console.warn('config load failed', e); }
+  try { await loadDocs(); } catch (e) { console.warn('docs load failed', e); }
+  // Populate the model dropdown for whatever vendor is currently saved.
+  refreshModelList({ auto: true }).catch(() => {});
+  // Silent update check: sets the GitHub link and shows a red dot when a newer
+  // release exists, without popping a dialog on every page load.
+  checkUpdate({ silent: true }).catch(() => {});
+  // The wizard banner check runs LAST so it sees the most up-to-date state.
+  await checkInit();
+})();
+</script>
+</body>
+</html>

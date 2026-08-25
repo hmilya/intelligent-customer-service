@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iframe 嵌入演示</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; padding: 40px; max-width: 760px; margin: 0 auto; color: #222; line-height: 1.7; }
+    code { background: #f1f3f5; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    pre { background: #1f2937; color: #d6deeb; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+    /* 尺寸必须容得下 widget 展开后的全部内容，否则面板被裁掉，
+       而 iframe 自身的背景色会露出来变成一块白板。
+       widget 需要：宽 360(面板) + 20*2(边距) = 400
+                   高 540(面板) + 76(按钮位) + 20(边距) = 636
+       背景设为 transparent：即使尺寸有误差也不会出现白块，
+       未被占用的区域直接透出宿主页面。 */
+    iframe {
+      position: fixed; right: 20px; bottom: 20px;
+      width: 400px; height: 636px;
+      max-width: calc(100vw - 8px);
+      max-height: calc(100vh - 8px);
+      border: 0;
+      background: transparent;
+      /* 阴影由 widget 自己的面板绘制，iframe 不要再加，
+         否则会看到一个比面板更大的矩形阴影框。 */
+    }
+    .note { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 6px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>iframe 嵌入演示</h1>
+  <p>
+    右下角的客服窗口是通过 <code>&lt;iframe&gt;</code> 加载的，与宿主页面完全隔离
+    —— 样式、脚本互不影响，适合不方便注入 <code>&lt;script&gt;</code> 的场景。
+  </p>
+
+  <pre><code>&lt;iframe src="http://localhost:8000/embed?api=http://localhost:8000"
+        style="position:fixed;right:20px;bottom:20px;
+               width:400px;height:636px;border:0;background:transparent;"&gt;
+&lt;/iframe&gt;</code></pre>
+
+  <div class="note">
+    <b>尺寸要够，背景要透明。</b><br>
+    展开后的面板需要 <code>400 × 636</code>（面板 360×540 + 按钮位 76 + 边距 20）。
+    给小了面板会被裁掉；<code>background</code> 不设成 <code>transparent</code>
+    的话，多余区域会露出 iframe 自身的底色，看起来像一块白板。
+  </div>
+
+  <p>
+    <code>/embed</code> 支持这些查询参数：<code>api</code>、<code>title</code>、
+    <code>accent</code>、<code>position</code>、<code>autoOpen</code>、
+    <code>upload</code>、<code>bg</code>。
+    不传则使用管理后台「客服信息」里的配置。
+  </p>
+
+  <div class="note">
+    注意：iframe 的 <code>src</code> 要指向 <code>/embed</code> 页面，
+    不能直接指向 <code>customer-service.js</code> —— 那样只会显示脚本源码。
+  </div>
+
+  <!-- 指向 /embed 页面；autoOpen=1 让窗口默认展开，便于演示 -->
+  <iframe src="/embed?api=http://localhost:8000&autoOpen=1"
+          title="智能客服"></iframe>
+</body>
+</html>

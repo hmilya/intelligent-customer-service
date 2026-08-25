@@ -1,0 +1,24 @@
+{
+  "name": "customer-service-widget",
+  "version": "0.1.0",
+  "description": "Embeddable chat widget for the Intelligent Customer Service platform.",
+  "main": "customer-service.js",
+  "files": [
+    "customer-service.js",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node selftest.mjs",
+    "build": "echo \"No build step — customer-service.js is shipped ready-to-use. Copy or CDN it.\" && exit 0"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  },
+  "keywords": [
+    "chat",
+    "widget",
+    "rag",
+    "customer-service"
+  ],
+  "license": "MIT"
+}

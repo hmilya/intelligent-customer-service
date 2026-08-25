@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能客服 Widget 演示</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; max-width: 880px; margin: 0 auto; padding: 40px 24px; color: #222; line-height: 1.6; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    p { color: #555; }
+    .card { background: #f7f8fa; border: 1px solid #eef0f3; border-radius: 12px; padding: 20px; margin: 16px 0; }
+    code { background: #eef0f3; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    pre { background: #0e1116; color: #d6deeb; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>🤖 智能客服 Widget 演示</h1>
+  <p>点击页面右下角的圆形按钮即可打开聊天窗口。本页面模拟一个第三方网站，展示如何把客服组件嵌入任意页面。</p>
+
+  <div class="card">
+    <h3>嵌入方式 1 — &lt;script&gt; 标签</h3>
+    <pre><code>&lt;script src="/widget/customer-service.js?v=1"&gt;&lt;/script&gt;
+&lt;script&gt;
+  CustomerService.init({
+    apiUrl: 'http://localhost:8000',
+    accent: '#0a66c2',
+    position: 'right',          // or 'left'
+    autoOpen: false,
+    enableUpload: true,
+  });
+&lt;/script&gt;</code></pre>
+    <p style="font-size:13px;color:#666;">
+      客服名称、头像、欢迎语会自动从后端「客服信息」读取，不用写在这里。<br>
+      <code>?v=1</code> 是缓存版本号，更新组件后递增它，否则用户会继续用旧版本。
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>嵌入方式 2 — iframe</h3>
+    <pre><code>&lt;iframe src="http://localhost:8000/embed?api=http://localhost:8000"
+        style="position:fixed;right:20px;bottom:20px;
+               width:400px;height:636px;border:0;background:transparent;"&gt;
+&lt;/iframe&gt;</code></pre>
+    <p style="font-size:13px;color:#6b7280;">
+      尺寸 <code>400×636</code> 是面板展开后需要的空间，给小了会被裁掉；
+      <code>background:transparent</code> 避免多余区域露出白底。
+      <a href="embed.html">看实际效果 →</a>
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>试一试</h3>
+    <p>1. 确保后端 <code>uvicorn src.main:app --port 8000</code> 已启动</p>
+    <p>2. <code>POST /api/documents/upload</code> 上传一份 <code>.docx</code> 知识文档，然后 <code>POST /api/documents/process</code> 入库</p>
+    <p>3. 在弹出的聊天框里问问题，应能看到流式回答 + 来源标注</p>
+  </div>
+
+  <!-- 加载客服组件 -->
+  <script>
+    // 用 ?v= 打破浏览器缓存 —— 否则改了 widget 却看到旧版本，
+    // 会让人误以为修改没生效。生产环境请换成构建版本号。
+    document.write('<script src="../customer-service.js?v=' + Date.now() + '"><\/script>');
+  </script>
+  <script>
+    // 只传演示页特有的选项。title / welcome / avatar 等留空，
+    // 让 widget 自己从后端「客服信息」拉取 —— 在这里写死会覆盖掉
+    // 你在管理后台配的内容。
+    CustomerService.init({
+      apiUrl: 'http://localhost:8000',
+      accent: '#0a66c2',
+      position: 'right',
+      enableUpload: true,
+    });
+  </script>
+</body>
+</html>

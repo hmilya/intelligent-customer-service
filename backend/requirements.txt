@@ -1,0 +1,52 @@
+# =========================================================================
+# Intelligent Customer Service — Python dependencies
+#
+#   pip install -r requirements.txt
+#
+# Tested on Python 3.11 / 3.12 / 3.14 (macOS arm64).
+# =========================================================================
+
+# ─── Web 框架 ───────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-multipart>=0.0.9         # FastAPI 文件上传（multipart/form-data）
+
+# ─── HTTP 客户端（LLM / Embedding 适配器直接用它，不依赖 langchain）───
+httpx>=0.27.0
+tenacity>=8.2.0                 # 请求重试（指数退避）
+
+# ─── 数据库 ─────────────────────────────────────────────
+sqlalchemy>=2.0.0
+greenlet>=3.0.0                 # ⚠ SQLAlchemy 异步必需，缺了会报 MissingGreenlet
+aiosqlite>=0.20.0               # SQLite 异步驱动（默认数据库）
+aiomysql>=0.2.0                 # MySQL 异步驱动（生产可选）
+
+# ─── 向量数据库 ─────────────────────────────────────────
+chromadb>=0.5.0                 # 默认，本地文件持久化
+qdrant-client>=1.11.0           # 生产级，可选
+# Milvus：企业级，可选。[milvus_lite] 让本地也能零安装跑（写 .db 文件）；
+# 只连远端 standalone/集群/Zilliz Cloud 的话装 pymilvus 就够。
+pymilvus[milvus_lite]>=2.4.0
+
+# ─── 文档解析 ───────────────────────────────────────────
+python-docx>=1.1.0              # .docx
+openpyxl>=3.1.0                 # .xlsx
+PyPDF2>=3.0.0                   # .pdf（可选）
+
+# ─── 文本切分 ───────────────────────────────────────────
+# 装不上也不影响运行：utils/text_splitter.py 有内置回退实现
+langchain-text-splitters>=0.3.0
+tiktoken>=0.7.0                 # token 计数（上下文预算控制）
+
+# ─── 缓存（可选，留空 REDIS_URL 则用内存）──────────────
+redis>=5.0.0
+
+# ─── 工具 ───────────────────────────────────────────────
+python-dotenv>=1.0.0
+loguru>=0.7.0                   # scripts/ 里的日志输出
+
+# ─── 测试 ───────────────────────────────────────────────
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
