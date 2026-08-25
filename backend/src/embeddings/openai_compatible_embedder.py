@@ -64,9 +64,13 @@ class OpenAICompatibleEmbedder(BaseEmbedder):
     #     shaped, so pausing doesn't buy goodwill — it just wastes wall-clock.
     #   * Concurrency also hurt badly (100 chunks: 3.4s serial vs 211s at 4).
     #
-    # Hence: serial, no pacing, short fixed retry on 429, and DON'T shrink the
-    # batch (a 429 is about request rate, not batch size — smaller batches mean
-    # more requests, which makes it worse).
+    # Hence: serial, no inter-request pacing, and DON'T shrink the batch on a
+    # 429 (that error is about request *rate*, not batch size — smaller batches
+    # mean more requests, which makes it worse).
+    #
+    # Retrying is budgeted by TIME rather than attempt count: ARK's quota can
+    # take 90s+ to refill, so an attempt-capped retry gave up too early and
+    # every ingest died after a single slice. See RATE_LIMIT_BUDGET below.
     DEFAULT_BATCH = 8
     DEFAULT_TIMEOUT = 60.0
     DEFAULT_CONCURRENCY = 1
