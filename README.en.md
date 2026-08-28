@@ -11,6 +11,13 @@
 ![tests](https://img.shields.io/badge/tests-36%20backend%20%2B%2017%20widget-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
+**Repositories**
+
+| Host | URL | Notes |
+| --- | --- | --- |
+| GitHub | https://github.com/vfaner/intelligent-customer-service | Primary repo — file issues and PRs here |
+| Gitee | https://gitee.com/super_rgh/intelligent-customer-service | Mirror for users in mainland China (faster clones); sync-only, no PRs |
+
 ---
 
 ## Contents
@@ -724,6 +731,8 @@ firewall, backups, upgrades, troubleshooting). The essentials:
 ```bash
 curl -fsSL https://get.docker.com | sh
 cd /opt && git clone https://github.com/vfaner/intelligent-customer-service.git intelligent-customer-service
+# Or, from mainland China, use the Gitee mirror:
+# git clone https://gitee.com/super_rgh/intelligent-customer-service.git intelligent-customer-service
 cd intelligent-customer-service
 # Create backend/Dockerfile and docker-compose.prod.yml
 # (full contents in docs/DEPLOYMENT.md)
@@ -738,6 +747,7 @@ curl -fsS http://127.0.0.1:8000/health
 sudo apt install -y python3.12 python3.12-venv nginx git
 sudo useradd -r -s /bin/false -d /opt/ics csapp
 sudo mkdir -p /opt/ics && cd /opt/ics && sudo git clone https://github.com/vfaner/intelligent-customer-service.git .
+# Gitee mirror: sudo git clone https://gitee.com/super_rgh/intelligent-customer-service.git .
 sudo chown -R csapp:csapp /opt/ics
 cd backend
 sudo -u csapp python3 -m venv .venv

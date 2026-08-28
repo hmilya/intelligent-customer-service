@@ -10,6 +10,13 @@
 ![tests](https://img.shields.io/badge/tests-36%20backend%20%2B%2017%20widget-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
+**仓库地址**
+
+| 平台 | 地址 | 说明 |
+| --- | --- | --- |
+| GitHub | https://github.com/vfaner/intelligent-customer-service | 主仓库，Issue / PR 请提到这里 |
+| Gitee | https://gitee.com/super_rgh/intelligent-customer-service | 国内镜像，克隆更快，只做同步不接受 PR |
+
 ---
 
 ## 目录
@@ -684,6 +691,8 @@ sudo usermod -aG docker $USER          # 重新登录生效
 
 # 2. 拉代码
 cd /opt && git clone https://github.com/vfaner/intelligent-customer-service.git intelligent-customer-service
+#   国内服务器可用 Gitee 镜像（更快）：
+#   git clone https://gitee.com/super_rgh/intelligent-customer-service.git intelligent-customer-service
 cd intelligent-customer-service
 
 # 3. 新建 backend/Dockerfile 和 docker-compose.prod.yml
@@ -712,6 +721,8 @@ sudo apt install -y python3.12 python3.12-venv nginx git
 # 2. 建专用用户 + 拉代码
 sudo useradd -r -s /bin/false -d /opt/ics csapp
 sudo mkdir -p /opt/ics && cd /opt/ics && sudo git clone https://github.com/vfaner/intelligent-customer-service.git .
+#   国内服务器可换成 Gitee 镜像：
+#   sudo git clone https://gitee.com/super_rgh/intelligent-customer-service.git .
 sudo chown -R csapp:csapp /opt/ics
 
 # 3. 装 Python 依赖
