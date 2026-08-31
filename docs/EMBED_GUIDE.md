@@ -36,7 +36,25 @@ your content without any CSS work.
 | `autoOpen`     | boolean             | `false`                | Auto-open on load |
 | `enableUpload` | boolean             | `true`                 | Show file upload button |
 | `sessionId`    | string \| null      | `null`                 | Resume an existing session |
+| `lang`         | `'auto'\|'zh-CN'\|'zh-TW'\|'ja'\|'en'` | `auto`  | UI **and answer** language |
 | `onReady`      | function            | `null`                 | Hook fired after init |
+| `onLangChange` | function            | `null`                 | Hook fired after the visitor switches language |
+
+### Language
+
+`lang: 'auto'` (the default) picks the language from the visitor's **timezone**
+first — `Asia/Shanghai` → 简体中文, `Asia/Taipei`/`Asia/Hong_Kong`/`Asia/Macau`
+→ 繁體中文, `Asia/Tokyo` → 日本語, anything else → English — falling back to
+`navigator.languages` when the timezone says nothing useful.
+
+No IP geolocation is involved, deliberately: on an intranet the client address
+is a `10.x`/`192.168.x` that carries no region, and no online geo service is
+reachable anyway. **Detection works fully offline.**
+
+The visitor can switch language from the widget's header, and the choice is
+remembered in `localStorage` (key `cs_lang`, shared with the admin console).
+Whatever language is active is sent with every request, so the AI answers in
+that language too — the knowledge base stays Chinese, only the reply changes.
 
 ## 2. iframe (full isolation)
 
@@ -71,6 +89,7 @@ Query parameters `/embed` accepts:
 | `autoOpen` | `1` | `0` = start collapsed |
 | `upload` | `1` | `0` = hide the file-upload button |
 | `bg` | transparent | Paint a backdrop, e.g. `bg=f4f6f9` |
+| `lang` | auto-detected | Force a language: `zh-CN` / `zh-TW` / `ja` / `en` |
 
 ## 3. WeChat mini-program (小程序)
 

@@ -45,8 +45,11 @@ const { window } = dom;
 window.TextDecoder = TextDecoder;
 window.TextEncoder = TextEncoder;
 window.AbortController = AbortController;
-window.fetch = async (url) => {
+/** Every request body the widget sent, so we can assert `lang` travels along. */
+const sentBodies = [];
+window.fetch = async (url, opts) => {
   const u = String(url);
+  if (opts && opts.body) { try { sentBodies.push(JSON.parse(opts.body)); } catch {} }
   if (u.includes('/api/chat/stream')) {
     const bytes = new TextEncoder().encode(sseBody());
     let sent = false;
@@ -58,7 +61,11 @@ window.fetch = async (url) => {
 
 // A broken template literal throws right here — that's the main thing we catch.
 window.eval(src);
-window.CustomerService.init({ apiUrl: 'http://x', useServerConfig: false, autoOpen: true });
+// `lang` is pinned so the assertions below don't depend on the machine's
+// timezone. Detection itself is covered by the resolveLang case table.
+window.CustomerService.init({
+  apiUrl: 'http://x', useServerConfig: false, autoOpen: true, lang: 'en',
+});
 await new Promise(r => setTimeout(r, 150));
 window.CustomerService.sendMessage('星空特效');
 await new Promise(r => setTimeout(r, 1200));
@@ -115,6 +122,114 @@ const checks = [
     return true;
   }],
 ];
+
+// ---------------------------------------------------------------------------
+// Language: detection priority, cross-copy drift, live switching
+// ---------------------------------------------------------------------------
+const CS = window.CustomerService;
+// The widget inlines its own copy of the detector so it stays a single
+// distributable file. shared/locale.js is the authoritative one — eval it here
+// and assert the two never disagree.
+window.eval(readFileSync(join(here, '..', 'shared', 'locale.js'), 'utf8'));
+const shared = window.CSLocale;
+
+// [input, expected locale, expected source]. Covers the requirement directly:
+// 大陆→简中, 港澳台→繁中, 日本→日语, 其他→英语, plus every fallback rung.
+const LOCALE_CASES = [
+  [{},                                             'en',    'default'],
+  [{ timeZone: 'Asia/Shanghai' },                  'zh-CN', 'timezone'],
+  [{ timeZone: 'Asia/Urumqi' },                    'zh-CN', 'timezone'],
+  [{ timeZone: 'PRC' },                            'zh-CN', 'timezone'],
+  [{ timeZone: 'Asia/Taipei' },                    'zh-TW', 'timezone'],
+  [{ timeZone: 'ROC' },                            'zh-TW', 'timezone'],
+  [{ timeZone: 'Asia/Hong_Kong' },                 'zh-TW', 'timezone'],
+  [{ timeZone: 'Hongkong' },                       'zh-TW', 'timezone'],
+  [{ timeZone: 'Asia/Macau' },                     'zh-TW', 'timezone'],
+  [{ timeZone: 'Asia/Macao' },                     'zh-TW', 'timezone'],
+  [{ timeZone: 'Asia/Tokyo' },                     'ja',    'timezone'],
+  [{ timeZone: 'Japan' },                          'ja',    'timezone'],
+  [{ timeZone: 'Europe/Paris' },                   'en',    'default'],
+  [{ timeZone: 'America/New_York' },               'en',    'default'],
+  // Timezone beats browser language: a machine in Taipei on an English OS is
+  // still in a Traditional-Chinese region.
+  [{ timeZone: 'Asia/Taipei', languages: ['en-US'] },   'zh-TW', 'timezone'],
+  // No region signal (e.g. TZ unset on a locked-down intranet box) → language.
+  [{ languages: ['ja-JP', 'en'] },                 'ja',    'language'],
+  [{ languages: ['zh-Hant-HK'] },                  'zh-TW', 'language'],
+  [{ languages: ['zh-CHT'] },                      'zh-TW', 'language'],
+  [{ languages: ['zh-CHS'] },                      'zh-CN', 'language'],
+  [{ languages: ['zh-SG'] },                       'zh-CN', 'language'],
+  [{ languages: ['yue'] },                         'zh-TW', 'language'],
+  [{ languages: ['yue-Hans'] },                    'zh-CN', 'language'],
+  // Unmatched tags must not short-circuit to English — keep scanning the list.
+  [{ languages: ['fr-FR', 'de', 'zh-CN'] },        'zh-CN', 'language'],
+  [{ languages: ['fr-FR', 'de'] },                 'en',    'default'],
+  // A hand-picked language outranks everything, including the region.
+  [{ stored: 'ja', explicit: 'en', timeZone: 'Asia/Shanghai' }, 'ja',    'stored'],
+  [{ explicit: 'zh-TW', timeZone: 'Asia/Tokyo' },  'zh-TW', 'explicit'],
+  // Junk in localStorage degrades to the next signal instead of throwing.
+  [{ stored: 'klingon', timeZone: 'Asia/Tokyo' },  'ja',    'timezone'],
+  [{ stored: null, languages: null, timeZone: null }, 'en',  'default'],
+];
+
+const localeFails = [];
+const driftFails = [];
+for (const [input, wantLocale, wantSource] of LOCALE_CASES) {
+  const label = JSON.stringify(input);
+  let a, b;
+  try { a = CS.resolveLang(input); } catch (e) { a = { locale: 'THREW: ' + e.message }; }
+  try { b = shared.resolve(input); } catch (e) { b = { locale: 'THREW: ' + e.message }; }
+  if (a.locale !== wantLocale || a.source !== wantSource) {
+    localeFails.push(`${label} → ${a.locale}/${a.source}，应为 ${wantLocale}/${wantSource}`);
+  }
+  if (a.locale !== b.locale || a.source !== b.source) {
+    driftFails.push(`${label} → widget ${a.locale}/${a.source} vs shared ${b.locale}/${b.source}`);
+  }
+}
+
+// Switch to Japanese and confirm the chrome actually re-renders. Past messages
+// stay as-written (we can't retranslate them); only new answers change.
+const enTitle = d.getElementById('cs-title')?.textContent;
+const answerBefore = bubble?.textContent;
+const msgCountBefore = d.querySelectorAll('.cs-msg').length;
+CS.setLang('ja');
+const jaTitle = d.getElementById('cs-title')?.textContent;
+
+checks.push(
+  ['地区检测优先级正确', () => {
+    if (localeFails.length) console.log('\n  ' + localeFails.join('\n  '));
+    return !localeFails.length;
+  }],
+  ['内联副本与 shared/locale.js 一致', () => {
+    if (driftFails.length) console.log('\n  ' + driftFails.join('\n  '));
+    return !driftFails.length;
+  }],
+  ['四种语言都在下拉里',   () => d.querySelectorAll('.cs-lang-menu button').length === 4],
+  ['下拉用各自的文字',     () => {
+    const labels = [...d.querySelectorAll('.cs-lang-menu button')].map(b => b.textContent);
+    return ['简体中文', '繁體中文', '日本語', 'English'].every(x => labels.includes(x));
+  }],
+  ['下拉项带 lang 属性',   () => [...d.querySelectorAll('.cs-lang-menu button')]
+      .every(b => !!b.getAttribute('lang'))],
+  ['显式 lang 生效',       () => !!enTitle && !/[一-鿿]/.test(enTitle)],
+  ['切换后标题变日语',     () => jaTitle && jaTitle !== enTitle && /[ぁ-んァ-ヶ一-鿿]/.test(jaTitle)],
+  ['切换后输入框提示变了', () => {
+    const ph = d.querySelector('.cs-input textarea')?.getAttribute('placeholder') || '';
+    return /[ぁ-んァ-ヶ一-鿿]/.test(ph);
+  }],
+  ['切换后当前项高亮',     () => d.querySelector('.cs-lang-menu button.active')?.textContent === '日本語'],
+  ['切换有系统提示',       () => d.querySelectorAll('.cs-msg').length === msgCountBefore + 1
+      && !!d.querySelector('.cs-msg.system')],
+  // Retranslating past turns would be a lie — they were written in the old
+  // language and we have no translation for them.
+  ['历史消息未被改写',     () => bubble?.textContent === answerBefore],
+  ['getLang 反映切换',     () => CS.getLang() === 'ja'],
+  ['切换已持久化',         () => window.localStorage.getItem('cs_lang') === 'ja'],
+  ['请求带上了 lang',      () => {
+    const chat = sentBodies.filter(b => 'message' in b).pop();
+    return !!chat && chat.lang === 'en';   // pinned at init, before the switch
+  }],
+);
 
 let failed = 0;
 for (const [name, fn] of checks) {

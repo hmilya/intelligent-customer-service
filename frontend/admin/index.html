@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>智能客服系统 · 管理后台</title>
+<title data-i18n>智能客服系统 · 管理后台</title>
+<!-- Offline region/language detection (timezone-first, browser-language
+     fallback) and the translation catalogs. Loaded before the page script so
+     the first paint is already in the right language. -->
+<script src="/shared/locale.js"></script>
+<script src="i18n.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -129,6 +134,30 @@
   .topbar .api-url code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; }
   .topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Language switcher: globe button + dropdown, styled to match .tool-btn. */
+  .cs-lang { position: relative; }
+  .cs-lang-btn {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    padding: 6px 10px; font-size: 13px; line-height: 1;
+    background: #fff; color: #374151;
+    border: 1px solid #d1d5db; border-radius: 6px;
+  }
+  .cs-lang-btn:hover { background: #f9fafb; border-color: #9ca3af; }
+  .cs-lang-menu {
+    display: none; position: absolute; right: 0; top: calc(100% + 6px);
+    min-width: 132px; padding: 4px; z-index: 50;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  }
+  .cs-lang-menu.open { display: block; }
+  .cs-lang-menu button {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    padding: 8px 10px; font-size: 13px; color: #374151;
+    background: none; border: 0; border-radius: 6px;
+  }
+  .cs-lang-menu button:hover { background: #f3f4f6; }
+  .cs-lang-menu button.active { background: #eff6ff; color: #0a66c2; font-weight: 600; }
 
   /* 工具按钮：状态胶囊与按钮同高，视觉成组 */
   .tool-btn {
@@ -306,41 +335,56 @@
 <body>
 <div class="layout">
   <aside class="sidebar">
-    <h1>🤖 智能客服</h1>
-    <div class="nav-item active" data-page="dashboard">📊 <span class="icon"></span>概览</div>
-    <div class="nav-item" data-page="llm">🤖 <span class="icon"></span>模型配置</div>
-    <div class="nav-item" data-page="vector">🧠 <span class="icon"></span>向量库</div>
-    <div class="nav-item" data-page="rag">🔍 <span class="icon"></span>RAG 设置</div>
-    <div class="nav-item" data-page="documents">📄 <span class="icon"></span>知识文档</div>
-    <div class="nav-item" data-page="agent">💬 <span class="icon"></span>客服信息</div>
-    <div class="nav-item" data-page="chat">🪟 <span class="icon"></span>聊天预览</div>
-    <div class="nav-item" data-page="embed">🌐 <span class="icon"></span>嵌入指南</div>
+    <h1 data-i18n>🤖 智能客服</h1>
+    <div class="nav-item active" data-page="dashboard">📊 <span class="icon"></span><span data-i18n>概览</span></div>
+    <div class="nav-item" data-page="llm">🤖 <span class="icon"></span><span data-i18n>模型配置</span></div>
+    <div class="nav-item" data-page="vector">🧠 <span class="icon"></span><span data-i18n>向量库</span></div>
+    <div class="nav-item" data-page="rag">🔍 <span class="icon"></span><span data-i18n>RAG 设置</span></div>
+    <div class="nav-item" data-page="documents">📄 <span class="icon"></span><span data-i18n>知识文档</span></div>
+    <div class="nav-item" data-page="agent">💬 <span class="icon"></span><span data-i18n>客服信息</span></div>
+    <div class="nav-item" data-page="chat">🪟 <span class="icon"></span><span data-i18n>聊天预览</span></div>
+    <div class="nav-item" data-page="embed">🌐 <span class="icon"></span><span data-i18n>嵌入指南</span></div>
   </aside>
 
   <main class="main">
     <div class="topbar">
       <div class="topbar-left">
-        <h2>管理后台</h2>
+        <h2 data-i18n>管理后台</h2>
         <div class="api-url">API: <code id="apiUrlDisplay">http://localhost:8000</code></div>
       </div>
       <div class="topbar-right">
         <!-- 后端状态：只显示圆点 + 短标签，详细错误挪到 title 提示，
              避免长报错（如 "Failed to fetch"）把整行撑开。 -->
         <div id="connStatus" class="conn-status" title="">
-          <span class="dot"></span><span class="conn-text">未连接</span>
+          <span class="dot"></span><span class="conn-text" data-i18n>未连接</span>
         </div>
         <div class="topbar-actions">
-          <button class="tool-btn" id="btnCheckUpdate" title="检查是否有新版本">
+          <!-- Language switcher. Options are labelled in their own script so a
+               visitor who can't read the current language can still find theirs.
+               Populated by i18n.js on boot. -->
+          <div class="cs-lang">
+            <button class="cs-lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false"
+                    title="切换语言 / Language" data-i18n-attr="title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+              <span id="langLabel">简体中文</span>
+            </button>
+            <div class="cs-lang-menu" id="langMenu"></div>
+          </div>
+          <button class="tool-btn" id="btnCheckUpdate" title="检查是否有新版本" data-i18n-attr="title">
             <span class="tool-ico" id="updateIco">⬆︎</span>
-            <span>检测更新</span>
+            <span data-i18n>检测更新</span>
             <span class="badge-dot" id="updateBadge" hidden></span>
           </button>
-          <button class="tool-btn" id="btnDonate" title="打赏支持作者">
+          <button class="tool-btn" id="btnDonate" title="打赏支持作者" data-i18n-attr="title">
             <img src="/assets/donate.png" alt="" class="tool-img" />
-            <span>打赏支持</span>
+            <span data-i18n>打赏支持</span>
           </button>
           <a class="tool-btn" id="btnGithub" href="#" target="_blank" rel="noopener noreferrer"
-             title="在 GitHub 上查看项目">
+             title="在 GitHub 上查看项目" data-i18n-attr="title">
             <img src="/assets/github.svg" alt="" class="tool-img" />
             <span>GitHub</span>
           </a>
@@ -350,84 +394,84 @@
 
     <!-- First-run wizard banner -->
     <div class="wizard-banner" id="wizardBanner">
-      <h3 id="wizardTitle">⚠️ 检测到系统未完成初始化</h3>
+      <h3 id="wizardTitle" data-i18n>⚠️ 检测到系统未完成初始化</h3>
       <div id="wizardBody">
-        <p style="margin:8px 0;color:#78350f;font-size:13px;">系统检测到以下问题：</p>
+        <p style="margin:8px 0;color:#78350f;font-size:13px;" data-i18n>系统检测到以下问题：</p>
         <ul id="wizardIssues"></ul>
-        <p style="margin:8px 0;color:#78350f;font-size:13px;">点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。</p>
+        <p style="margin:8px 0;color:#78350f;font-size:13px;" data-i18n>点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。</p>
         <div class="actions">
-          <button class="btn btn-primary" id="btnInit">🚀 一键初始化</button>
-          <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+          <button class="btn btn-primary" id="btnInit" data-i18n>🚀 一键初始化</button>
+          <button class="btn btn-secondary" id="btnRecheck" data-i18n>🔄 重新检测</button>
         </div>
       </div>
       <div id="wizardOk" style="display:none;">
-        <p style="margin:8px 0;color:#065f46;font-size:13px;" id="wizardOkText">✅ 初始化完成！</p>
+        <p style="margin:8px 0;color:#065f46;font-size:13px;" id="wizardOkText" data-i18n>✅ 初始化完成！</p>
         <ul id="wizardActions"></ul>
       </div>
     </div>
 
     <section class="page active" id="page-dashboard">
-      <h2>系统概览</h2>
-      <p class="desc">在这里查看系统状态并快速跳转到各配置页。</p>
+      <h2 data-i18n>系统概览</h2>
+      <p class="desc" data-i18n>在这里查看系统状态并快速跳转到各配置页。</p>
       <div class="card">
-        <h3>快速开始</h3>
+        <h3 data-i18n>快速开始</h3>
         <ol style="line-height:1.9;color:#374151;">
-          <li>前往 <strong>「模型配置」</strong> 选择厂商并填入 API Key</li>
-          <li>点击 <strong>「测试连接」</strong> 验证 Key 可用</li>
-          <li>前往 <strong>「知识文档」</strong> 上传并入库文档</li>
-          <li>在 <strong>「聊天预览」</strong> 立即体验</li>
+          <li data-i18n-html>前往 <strong>「模型配置」</strong> 选择厂商并填入 API Key</li>
+          <li data-i18n-html>点击 <strong>「测试连接」</strong> 验证 Key 可用</li>
+          <li data-i18n-html>前往 <strong>「知识文档」</strong> 上传并入库文档</li>
+          <li data-i18n-html>在 <strong>「聊天预览」</strong> 立即体验</li>
         </ol>
       </div>
       <div class="form-row">
         <div class="card" style="flex:1;">
-          <h3>当前模型</h3>
+          <h3 data-i18n>当前模型</h3>
           <div id="dashModel" style="font-size:14px;color:#374151;">—</div>
         </div>
         <div class="card" style="flex:1;">
-          <h3>向量库</h3>
+          <h3 data-i18n>向量库</h3>
           <div id="dashVector" style="font-size:14px;color:#374151;">—</div>
         </div>
         <div class="card" style="flex:1;">
-          <h3>知识文档</h3>
+          <h3 data-i18n>知识文档</h3>
           <div id="dashDocs" style="font-size:14px;color:#374151;">—</div>
         </div>
       </div>
     </section>
 
     <section class="page" id="page-llm">
-      <h2>模型配置</h2>
-      <p class="desc">配置智能客服使用的 AI 模型。修改后立即生效，无需重启。</p>
+      <h2 data-i18n>模型配置</h2>
+      <p class="desc" data-i18n>配置智能客服使用的 AI 模型。修改后立即生效，无需重启。</p>
 
       <div class="card">
-        <h3>💬 对话模型（生成回答）</h3>
+        <h3 data-i18n>💬 对话模型（生成回答）</h3>
         <div class="form-row">
           <div class="form-field">
-            <label>厂商 (Provider)</label>
+            <label data-i18n>厂商 (Provider)</label>
             <select id="llmProvider"></select>
-            <div class="hint" id="providerHint">选择一个 LLM 厂商</div>
+            <div class="hint" id="providerHint" data-i18n>选择一个 LLM 厂商</div>
           </div>
           <div class="form-field">
-            <label>协议</label>
+            <label data-i18n>协议</label>
             <select id="llmProtocol"></select>
-            <div class="hint" id="protocolHint">切换协议会自动更新 Base URL</div>
+            <div class="hint" id="protocolHint" data-i18n>切换协议会自动更新 Base URL</div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
             <label>API Key</label>
             <input type="password" id="llmApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off" />
-            <div class="hint">留空表示不修改已保存的密钥</div>
+            <div class="hint" data-i18n>留空表示不修改已保存的密钥</div>
           </div>
           <div class="form-field">
-            <label>Base URL <span id="llmBaseUrlReq" style="display:none;color:#dc2626;">*必填</span></label>
+            <label>Base URL <span id="llmBaseUrlReq" style="display:none;color:#dc2626;" data-i18n>*必填</span></label>
             <input type="text" id="llmBaseUrl" placeholder="https://api.deepseek.com/v1" />
-            <div class="hint">API 根地址，末尾不要带 <code>/chat/completions</code></div>
+            <div class="hint" data-i18n-html>API 根地址，末尾不要带 <code>/chat/completions</code></div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
             <label>
-              模型名称 <span id="llmModelReq" style="display:none;color:#dc2626;">*必填</span>
+              <span data-i18n>模型名称</span> <span id="llmModelReq" style="display:none;color:#dc2626;" data-i18n>*必填</span>
               <span id="modelLoading" style="display:none;color:#6b7280;font-weight:400;">
                 <span class="spinner-sm"></span>正在获取模型列表…
               </span>
@@ -435,10 +479,10 @@
             <div style="display:flex;gap:6px;">
               <select id="llmModelSelect" style="flex:1;"></select>
               <button class="btn btn-secondary" id="btnRefreshModels" title="从厂商接口重新获取模型列表"
-                      style="padding:8px 10px;">🔄</button>
+                      style="padding:8px 10px;" data-i18n-attr="title">🔄</button>
             </div>
             <input type="text" id="llmModel" placeholder="deepseek-chat" style="margin-top:6px;" />
-            <div class="hint" id="llmModelHint">上方下拉选择，或在此手动输入模型名</div>
+            <div class="hint" id="llmModelHint" data-i18n>上方下拉选择，或在此手动输入模型名</div>
           </div>
           <div class="form-field">
             <label>Temperature</label>
@@ -446,51 +490,51 @@
               <input type="range" id="llmTemp" min="0" max="1" step="0.05" />
               <span class="value" id="llmTempVal">0.30</span>
             </div>
-            <div class="hint">越低越稳定（推荐 ≤ 0.3 减少幻觉）</div>
+            <div class="hint" data-i18n>越低越稳定（推荐 ≤ 0.3 减少幻觉）</div>
           </div>
         </div>
         <div class="btn-group">
-          <button class="btn btn-secondary" id="btnResetLlmDefaults">↩︎ 用厂商默认值填充</button>
-          <button class="btn btn-secondary" id="btnTest">🔌 测试连接</button>
-          <button class="btn btn-primary" id="btnSave">💾 保存对话模型</button>
+          <button class="btn btn-secondary" id="btnResetLlmDefaults" data-i18n>↩︎ 用厂商默认值填充</button>
+          <button class="btn btn-secondary" id="btnTest" data-i18n>🔌 测试连接</button>
+          <button class="btn btn-primary" id="btnSave" data-i18n>💾 保存对话模型</button>
         </div>
         <div class="alert alert-success" id="llmOk"></div>
         <div class="alert alert-error" id="llmErr"></div>
       </div>
 
       <div class="card">
-        <h3>🧬 向量模型（文档 Embedding）</h3>
-        <p style="color:#6b7280;font-size:13px;margin-top:-8px;">
+        <h3 data-i18n>🧬 向量模型（文档 Embedding）</h3>
+        <p style="color:#6b7280;font-size:13px;margin-top:-8px;" data-i18n>
           用于把文档和问题转成向量。多数厂商的 embedding 接口与对话接口同一个 Key 和 Base URL。
         </p>
         <div class="form-row">
           <div class="form-field">
             <label>API Key</label>
             <input type="password" id="embApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off" />
-            <div class="hint">留空表示不修改已保存的密钥</div>
+            <div class="hint" data-i18n>留空表示不修改已保存的密钥</div>
           </div>
           <div class="form-field">
             <label>Base URL</label>
             <input type="text" id="embBaseUrl" placeholder="https://api.openai.com/v1" />
-            <div class="hint">调用 <code>{base}/embeddings</code></div>
+            <div class="hint" data-i18n-html>调用 <code>{base}/embeddings</code></div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
-            <label>Embedding 模型</label>
+            <label data-i18n>Embedding 模型</label>
             <input type="text" id="embModel" placeholder="text-embedding-3-small" />
             <div class="hint" id="embModelHint"></div>
           </div>
           <div class="form-field">
-            <label>向量维度</label>
+            <label data-i18n>向量维度</label>
             <input type="number" id="embDim" placeholder="1024" />
-            <div class="hint">必须与模型实际输出一致（点「测试」可自动探测）</div>
+            <div class="hint" data-i18n>必须与模型实际输出一致（点「测试」可自动探测）</div>
           </div>
         </div>
         <div class="btn-group">
-          <button class="btn btn-secondary" id="btnCopyFromLlm">⬆︎ 复用对话模型的 Key / URL</button>
-          <button class="btn btn-secondary" id="btnTestEmb">🔌 测试并探测维度</button>
-          <button class="btn btn-primary" id="btnSaveEmb">💾 保存向量模型</button>
+          <button class="btn btn-secondary" id="btnCopyFromLlm" data-i18n>⬆︎ 复用对话模型的 Key / URL</button>
+          <button class="btn btn-secondary" id="btnTestEmb" data-i18n>🔌 测试并探测维度</button>
+          <button class="btn btn-primary" id="btnSaveEmb" data-i18n>💾 保存向量模型</button>
         </div>
         <div class="alert alert-success" id="embOk"></div>
         <div class="alert alert-error" id="embErr"></div>
@@ -498,22 +542,22 @@
     </section>
 
     <section class="page" id="page-vector">
-      <h2>向量库配置</h2>
-      <p class="desc">修改向量库需要重启后端服务（SQLite + Chroma 持久化已开箱即用）。</p>
+      <h2 data-i18n>向量库配置</h2>
+      <p class="desc" data-i18n>修改向量库需要重启后端服务（SQLite + Chroma 持久化已开箱即用）。</p>
       <div class="card">
-        <h3>基础设置</h3>
+        <h3 data-i18n>基础设置</h3>
         <div class="form-row">
           <div class="form-field">
-            <label>向量库类型</label>
+            <label data-i18n>向量库类型</label>
             <select id="vecProvider">
-              <option value="chroma">Chroma (本地文件，推荐)</option>
-              <option value="qdrant">Qdrant (生产级，需服务)</option>
-              <option value="milvus">Milvus (企业级，本地 Lite / 远端集群)</option>
+              <option value="chroma" data-i18n>Chroma (本地文件，推荐)</option>
+              <option value="qdrant" data-i18n>Qdrant (生产级，需服务)</option>
+              <option value="milvus" data-i18n>Milvus (企业级，本地 Lite / 远端集群)</option>
             </select>
             <div class="hint" id="vecProviderHint"></div>
           </div>
           <div class="form-field">
-            <label>集合名</label>
+            <label data-i18n>集合名</label>
             <input type="text" id="vecCollection" placeholder="knowledge_base" />
           </div>
         </div>
@@ -536,7 +580,7 @@
             <div class="form-field full">
               <label>Milvus URI</label>
               <input type="text" id="vecMilvusUri" placeholder="./data/milvus.db" />
-              <div class="hint">
+              <div class="hint" data-i18n-html>
                 本地零安装（Milvus Lite）填 <code>./data/milvus.db</code>；
                 连服务器填 <code>http://localhost:19530</code>；
                 Zilliz Cloud 填 <code>https://xxx.zillizcloud.com</code>
@@ -545,11 +589,11 @@
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label>Token / API Key（Zilliz Cloud 才需要）</label>
-              <input type="password" id="vecMilvusToken" placeholder="留空即可" autocomplete="off" />
+              <label data-i18n>Token / API Key（Zilliz Cloud 才需要）</label>
+              <input type="password" id="vecMilvusToken" placeholder="留空即可" autocomplete="off" data-i18n-attr="placeholder" />
             </div>
             <div class="form-field">
-              <label>Database 名（可选）</label>
+              <label data-i18n>Database 名（可选）</label>
               <input type="text" id="vecMilvusDbName" placeholder="default" />
             </div>
           </div>
@@ -557,117 +601,115 @@
 
         <div class="form-row">
           <div class="form-field">
-            <label>向量维度</label>
+            <label data-i18n>向量维度</label>
             <input type="number" id="vecDim" placeholder="1024" />
-            <div class="hint">必须与 Embedding 模型输出一致<span id="vecDimStrict" style="display:none;color:#b45309;">（Milvus 建集合时固定，改了要新建集合）</span></div>
+            <div class="hint"><span data-i18n>必须与 Embedding 模型输出一致</span><span id="vecDimStrict" style="display:none;color:#b45309;" data-i18n>（Milvus 建集合时固定，改了要新建集合）</span></div>
           </div>
           <div class="form-field" id="chromaPersistField">
-            <label>持久化目录 (Chroma)</label>
+            <label data-i18n>持久化目录 (Chroma)</label>
             <input type="text" id="vecPersist" placeholder="./data/chroma_db" />
           </div>
         </div>
         <div class="btn-group">
-          <button class="btn btn-primary" id="btnSaveVec">💾 保存</button>
+          <button class="btn btn-primary" id="btnSaveVec" data-i18n>💾 保存</button>
         </div>
-        <div class="alert alert-info" id="vecInfo">提示：切换向量库后需要重新上传并入库文档。</div>
+        <div class="alert alert-info" id="vecInfo" data-i18n>提示：切换向量库后需要重新上传并入库文档。</div>
       </div>
     </section>
 
     <section class="page" id="page-rag">
-      <h2>RAG 设置</h2>
-      <p class="desc">检索增强生成的参数调优。</p>
+      <h2 data-i18n>RAG 设置</h2>
+      <p class="desc" data-i18n>检索增强生成的参数调优。</p>
       <div class="card">
-        <h3>检索参数</h3>
+        <h3 data-i18n>检索参数</h3>
         <div class="form-row">
           <div class="form-field">
             <label>Top K</label>
             <input type="number" id="ragTopK" min="1" max="20" />
-            <div class="hint">每次检索返回的相关片段数</div>
+            <div class="hint" data-i18n>每次检索返回的相关片段数</div>
           </div>
           <div class="form-field">
-            <label>相似度阈值 (0~1)</label>
+            <label data-i18n>相似度阈值 (0~1)</label>
             <div class="range-row">
               <input type="range" id="ragThreshold" min="0" max="1" step="0.05" />
               <span class="value" id="ragThresholdVal">0.50</span>
             </div>
-            <div class="hint">低于此值视为不相关，会触发「无法回答」</div>
+            <div class="hint" data-i18n>低于此值视为不相关，会触发「无法回答」</div>
           </div>
         </div>
       </div>
       <div class="card">
-        <h3>回答策略</h3>
+        <h3 data-i18n>回答策略</h3>
         <div class="form-row">
           <div class="form-field full">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="ragAllowModelKnowledge" style="width:auto;margin:0;" />
-              知识库没有相关内容时，允许 AI 用自己的知识回答
+              <input type="checkbox" id="ragAllowModelKnowledge" style="width:auto;margin:0;" /> <span data-i18n>知识库没有相关内容时，允许 AI 用自己的知识回答</span>
             </label>
             <div class="hint" id="ragAllowHint"></div>
           </div>
         </div>
         <div class="btn-group">
-          <button class="btn btn-primary" id="btnSaveAnswerMode">💾 保存回答策略</button>
+          <button class="btn btn-primary" id="btnSaveAnswerMode" data-i18n>💾 保存回答策略</button>
         </div>
         <div class="alert alert-success" id="answerModeOk"></div>
         <div class="alert alert-error" id="answerModeErr"></div>
       </div>
 
       <div class="card">
-        <h3>文本切分</h3>
+        <h3 data-i18n>文本切分</h3>
         <div class="form-row">
           <div class="form-field full">
-            <label>切分策略</label>
+            <label data-i18n>切分策略</label>
             <select id="ragStrategy">
-              <option value="structure">结构感知（推荐）— 按章节 / 标题 / Q&amp;A 切，不切断语义</option>
-              <option value="window">固定窗口 — 按字数硬切，不看结构</option>
+              <option value="structure" data-i18n>结构感知（推荐）— 按章节 / 标题 / Q&amp;A 切，不切断语义</option>
+              <option value="window" data-i18n>固定窗口 — 按字数硬切，不看结构</option>
             </select>
             <div class="hint" id="ragStrategyHint"></div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
-            <label>Chunk Size (字符)</label>
+            <label data-i18n>Chunk Size (字符)</label>
             <input type="number" id="ragChunkSize" min="100" max="4000" />
-            <div class="hint">结构感知模式下这是上限，实际按章节长度决定</div>
+            <div class="hint" data-i18n>结构感知模式下这是上限，实际按章节长度决定</div>
           </div>
           <div class="form-field">
             <label>Chunk Overlap</label>
             <input type="number" id="ragChunkOverlap" min="0" max="1000" />
-            <div class="hint">建议 80~200；仅在需要硬切长段落时生效</div>
+            <div class="hint" data-i18n>建议 80~200；仅在需要硬切长段落时生效</div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field full">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="ragPrefixHeading" style="width:auto;margin:0;" />
-              给每个片段加上所属标题前缀
+              <input type="checkbox" id="ragPrefixHeading" style="width:auto;margin:0;" /> <span data-i18n>给每个片段加上所属标题前缀</span>
             </label>
-            <div class="hint">
+            <div class="hint" data-i18n-html>
               开启后，检索到「Q4：数据安全吗？」时会带上 <code>[常见问题]</code>，
               让模型知道这段话的出处
             </div>
           </div>
         </div>
         <div class="btn-group">
-          <button class="btn btn-secondary" id="btnPreviewSplit">🔍 预览切分效果</button>
-          <button class="btn btn-primary" id="btnSaveRag">💾 保存 RAG 设置</button>
+          <button class="btn btn-secondary" id="btnPreviewSplit" data-i18n>🔍 预览切分效果</button>
+          <button class="btn btn-primary" id="btnSaveRag" data-i18n>💾 保存 RAG 设置</button>
         </div>
         <div class="alert alert-success" id="ragOk"></div>
         <div class="alert alert-error" id="ragErr"></div>
       </div>
 
       <div class="card" id="splitPreviewCard" style="display:none;">
-        <h3>切分预览</h3>
+        <h3 data-i18n>切分预览</h3>
         <div style="margin-bottom:12px;">
-          <label style="font-size:13px;color:#374151;font-weight:500;">选择要预览的内容</label>
+          <label style="font-size:13px;color:#374151;font-weight:500;" data-i18n>选择要预览的内容</label>
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
             <select id="previewDocSelect" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
-              <option value="">（粘贴文本）</option>
+              <option value="" data-i18n>（粘贴文本）</option>
             </select>
-            <button class="btn btn-secondary" id="btnRunPreview">重新预览</button>
+            <button class="btn btn-secondary" id="btnRunPreview" data-i18n>重新预览</button>
           </div>
           <textarea id="previewText" rows="4" placeholder="在这里粘贴一段文本试试切分效果…"
-                    style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:13px;"></textarea>
+                    style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:13px;" data-i18n-attr="placeholder"></textarea>
         </div>
         <div id="splitStats" style="font-size:13px;color:#374151;margin-bottom:12px;"></div>
         <div id="splitChunks" style="max-height:520px;overflow-y:auto;"></div>
@@ -675,77 +717,77 @@
     </section>
 
     <section class="page" id="page-documents">
-      <h2>知识文档</h2>
-      <p class="desc">上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。</p>
+      <h2 data-i18n>知识文档</h2>
+      <p class="desc" data-i18n>上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。</p>
       <div class="card">
-        <h3>上传新文档</h3>
+        <h3 data-i18n>上传新文档</h3>
         <div class="dropzone" id="dropzone">
           <p style="font-size:32px;margin:0;">📤</p>
-          <p>拖拽文件到这里，或 <strong>点击选择</strong></p>
-          <p style="font-size:12px;">支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB</p>
+          <p data-i18n-html>拖拽文件到这里，或 <strong>点击选择</strong></p>
+          <p style="font-size:12px;" data-i18n>支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB</p>
         </div>
         <input type="file" id="fileInput" accept=".txt,.md,.markdown,.docx,.xlsx,.pdf" style="display:none;" />
         <div class="alert" id="upAlert"></div>
       </div>
       <div class="card">
-        <h3>已上传文档</h3>
+        <h3 data-i18n>已上传文档</h3>
         <div id="docsContainer">
-          <div class="empty">加载中…</div>
+          <div class="empty" data-i18n>加载中…</div>
         </div>
       </div>
     </section>
 
     <section class="page" id="page-agent">
-      <h2>客服信息</h2>
-      <p class="desc">设置客服的名称、欢迎语、联系方式等。</p>
+      <h2 data-i18n>客服信息</h2>
+      <p class="desc" data-i18n>设置客服的名称、欢迎语、联系方式等。</p>
       <div class="card">
         <div class="form-row">
           <div class="form-field">
-            <label>客服名称</label>
-            <input type="text" id="agentName" placeholder="智能客服小助手" />
+            <label data-i18n>客服名称</label>
+            <input type="text" id="agentName" placeholder="智能客服小助手" data-i18n-attr="placeholder" />
           </div>
           <div class="form-field">
-            <label>头像 URL (可选)</label>
+            <label data-i18n>头像 URL (可选)</label>
             <input type="text" id="agentAvatar" placeholder="https://..." />
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
-            <label>联系电话</label>
+            <label data-i18n>联系电话</label>
             <input type="text" id="agentPhone" placeholder="400-xxx-xxxx" />
           </div>
           <div class="form-field">
-            <label>联系邮箱</label>
+            <label data-i18n>联系邮箱</label>
             <input type="text" id="agentEmail" placeholder="service@example.com" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-field full">
-            <label>欢迎语</label>
-            <textarea id="agentWelcome" rows="2" placeholder="您好，请问有什么可以帮您？"></textarea>
+            <label data-i18n>欢迎语</label>
+            <textarea id="agentWelcome" rows="2" placeholder="您好，请问有什么可以帮您？" data-i18n-attr="placeholder"></textarea>
           </div>
         </div>
         <div class="btn-group">
-          <button class="btn btn-primary" id="btnSaveAgent">💾 保存</button>
+          <button class="btn btn-primary" id="btnSaveAgent" data-i18n>💾 保存</button>
         </div>
         <div class="alert alert-success" id="agentOk"></div>
       </div>
     </section>
 
     <section class="page" id="page-chat">
-      <h2>聊天预览</h2>
-      <p class="desc">在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。</p>
+      <h2 data-i18n>聊天预览</h2>
+      <p class="desc" data-i18n>在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。</p>
       <div class="card">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-          <button class="btn btn-secondary" id="btnReloadChat">🔄 重新加载</button>
-          <button class="btn btn-secondary" id="btnOpenChatNewTab">↗︎ 在新标签页打开</button>
+          <button class="btn btn-secondary" id="btnReloadChat" data-i18n>🔄 重新加载</button>
+          <button class="btn btn-secondary" id="btnOpenChatNewTab" data-i18n>↗︎ 在新标签页打开</button>
           <span style="color:#6b7280;font-size:12px;" id="chatStatus"></span>
         </div>
         <div class="chat-frame" id="chatFrameBox">
           <iframe id="chatFrame" title="客服组件预览"
-                  style="width:100%;height:100%;border:0;display:block;"></iframe>
+                  style="width:100%;height:100%;border:0;display:block;" data-i18n-attr="title"></iframe>
         </div>
-        <div class="alert alert-info" id="chatTips" style="display:block;margin-top:12px;">
+        <div class="alert alert-info" id="chatTips" style="display:block;margin-top:12px;" data-i18n>
           💡 提示：知识库里没有相关内容时，客服会回答「抱歉，知识库中没有相关信息，我无法回答。」——
           这是 RAG 的预期行为。先到「知识文档」上传并入库文档，再来提问。
         </div>
@@ -753,11 +795,11 @@
     </section>
 
     <section class="page" id="page-embed">
-      <h2>嵌入指南</h2>
-      <p class="desc">把你的智能客服嵌入到任何网站、小程序或桌面应用中。</p>
+      <h2 data-i18n>嵌入指南</h2>
+      <p class="desc" data-i18n>把你的智能客服嵌入到任何网站、小程序或桌面应用中。</p>
       <div class="card">
-        <h3>方式 1：&lt;script&gt; 标签嵌入（最简单）</h3>
-        <p style="color:#6b7280;font-size:13px;">把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：</p>
+        <h3 data-i18n>方式 1：&lt;script&gt; 标签嵌入（最简单）</h3>
+        <p style="color:#6b7280;font-size:13px;" data-i18n-html>把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：</p>
         <pre style="background:#1f2937;color:#d1d5db;padding:16px;border-radius:6px;overflow-x:auto;font-size:12px;"><code>&lt;script src="https://your-cdn.com/customer-service.js?v=1"&gt;&lt;/script&gt;
 &lt;script&gt;
   CustomerService.init({
@@ -767,32 +809,32 @@
     enableUpload: true,
   });
 &lt;/script&gt;</code></pre>
-        <p style="color:#6b7280;font-size:12px;margin-top:8px;">
+        <p style="color:#6b7280;font-size:12px;margin-top:8px;" data-i18n-html>
           💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置，
           改一次对所有已嵌入的站点生效。<br>
           💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。
         </p>
-        <button class="btn btn-secondary" onclick="copyEmbedCode()">📋 复制代码</button>
+        <button class="btn btn-secondary" onclick="copyEmbedCode()" data-i18n>📋 复制代码</button>
       </div>
       <div class="card">
-        <h3>方式 2：iframe 嵌入（完全隔离）</h3>
+        <h3 data-i18n>方式 2：iframe 嵌入（完全隔离）</h3>
         <pre style="background:#1f2937;color:#d1d5db;padding:16px;border-radius:6px;overflow-x:auto;font-size:12px;"><code>&lt;iframe src="<span id="embedIframeUrl">http://localhost:8000/embed</span>"
         style="position:fixed;right:20px;bottom:20px;
                width:400px;height:636px;border:0;background:transparent;"&gt;
 &lt;/iframe&gt;</code></pre>
-        <p style="color:#6b7280;font-size:13px;">
+        <p style="color:#6b7280;font-size:13px;" data-i18n-html>
           <code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20），
           给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。
         </p>
       </div>
       <div class="card">
-        <h3>方式 3：微信 / 支付宝小程序</h3>
-        <p style="color:#6b7280;font-size:13px;">小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：</p>
+        <h3 data-i18n>方式 3：微信 / 支付宝小程序</h3>
+        <p style="color:#6b7280;font-size:13px;" data-i18n-html>小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：</p>
         <pre style="background:#1f2937;color:#d1d5db;padding:16px;border-radius:6px;overflow-x:auto;font-size:12px;"><code>&lt;web-view src="https://your-chat-host.com/?api=<span id="embedApiUrl2">http://localhost:8000</span>" /&gt;</code></pre>
       </div>
       <div class="card">
-        <h3>Widget 配置文件</h3>
-        <p style="color:#6b7280;font-size:13px;">直接下载：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依赖）</p>
+        <h3 data-i18n>Widget 配置文件</h3>
+        <p style="color:#6b7280;font-size:13px;" data-i18n-html>直接下载：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依赖）</p>
       </div>
     </section>
   </main>
@@ -803,26 +845,26 @@
 <div class="modal-mask" id="donateMask" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="donateTitle">
     <div class="modal-head">
-      <h3 id="donateTitle">☕ 打赏支持</h3>
-      <button class="modal-close" id="donateClose" aria-label="关闭">×</button>
+      <h3 id="donateTitle" data-i18n>☕ 打赏支持</h3>
+      <button class="modal-close" id="donateClose" aria-label="关闭" data-i18n-attr="aria-label">×</button>
     </div>
-    <p class="modal-desc">
+    <p class="modal-desc" data-i18n>
       这个项目是免费开源的。如果它帮你省下了时间，可以请作者喝杯咖啡 —— 完全自愿。
     </p>
     <div class="pay-tabs" id="payTabs">
       <button class="pay-tab active" data-pay="wechat">
-        <span class="pay-tab-ico wechat">💬</span> 微信
+        <span class="pay-tab-ico wechat">💬</span> <span data-i18n>微信</span>
       </button>
       <button class="pay-tab" data-pay="alipay">
-        <span class="pay-tab-ico alipay">🅰</span> 支付宝
+        <span class="pay-tab-ico alipay">🅰</span> <span data-i18n>支付宝</span>
       </button>
       <button class="pay-tab" data-pay="qq">
         <span class="pay-tab-ico qq">🐧</span> QQ
       </button>
     </div>
     <div class="qr-box">
-      <img id="qrImg" src="/assets/wechat.png" alt="微信赞赏码" />
-      <div class="qr-hint" id="qrHint">用微信扫一扫</div>
+      <img id="qrImg" src="/assets/wechat.png" alt="微信赞赏码" data-i18n-attr="alt" />
+      <div class="qr-hint" id="qrHint" data-i18n>用微信扫一扫</div>
     </div>
   </div>
 </div>
@@ -831,8 +873,8 @@
 <div class="modal-mask" id="updateMask" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
     <div class="modal-head">
-      <h3 id="updateTitle">⬆︎ 检测更新</h3>
-      <button class="modal-close" id="updateClose" aria-label="关闭">×</button>
+      <h3 id="updateTitle" data-i18n>⬆︎ 检测更新</h3>
+      <button class="modal-close" id="updateClose" aria-label="关闭" data-i18n-attr="aria-label">×</button>
     </div>
     <div id="updateBody"></div>
   </div>
@@ -842,6 +884,37 @@
 /* ========================================================================
    Admin UI Logic
    ======================================================================== */
+
+/**
+ * Translate a runtime string. The argument is the Chinese source text, exactly
+ * like the data-i18n markers in the HTML above — see i18n.js.
+ *
+ * Falls through to the argument if i18n.js failed to load, so a missing script
+ * degrades to a Chinese console instead of a blank one.
+ */
+const T = (s) => (window.CSAdminI18n ? window.CSAdminI18n.t(s) : s);
+
+/**
+ * Fill {0}, {1}… in a translated string.
+ *
+ * Numbered placeholders rather than string concatenation, because the pieces
+ * do not stay in this order: 「已自动把维度改为 N」 puts the number last while
+ * English wants "Dimension set to N automatically" and Japanese wants it before
+ * the verb. A translator can move {0} wherever that language needs it.
+ */
+const fmt = (s, ...args) => String(s).replace(/\{(\d+)\}/g, (m, i) =>
+  args[i] !== undefined ? args[i] : m);
+
+/** Re-render the parts built by JS when the language changes. */
+document.addEventListener('cs-lang-change', () => {
+  ping();
+  if (typeof syncStrategyHint === 'function') syncStrategyHint();
+  if (typeof syncAllowHint === 'function') syncAllowHint();
+  if (typeof syncCustomHints === 'function') syncCustomHints();
+  if (document.getElementById('page-documents')?.classList.contains('active')) loadDocs();
+  checkInit();
+});
+
 const API = (() => {
   const url = new URLSearchParams(location.search).get('api') || localStorage.getItem('cs_admin_api') || 'http://localhost:8000';
   localStorage.setItem('cs_admin_api', url);
@@ -891,12 +964,12 @@ function setConn(state, label, detail) {
   connStatus.title = detail || label;
 }
 async function ping() {
-  setConn('checking', '检查中…');
+  setConn('checking', T('检查中…'));
   try {
     await API.request('/health');
-    setConn('ok', '后端在线');
+    setConn('ok', T('后端在线'));
   } catch (e) {
-    setConn('err', '后端离线', '后端离线：' + e.message + '\n请确认服务已启动，且 API 地址正确。');
+    setConn('err', T('后端离线'), T('后端离线：') + e.message + T('\n请确认服务已启动，且 API 地址正确。'));
   }
 }
 ping();
@@ -938,16 +1011,16 @@ function renderWizard(s) {
     if (missingKey) {
       banner.classList.add('show');
       banner.classList.remove('ok');
-      $('wizardTitle').textContent = '💡 还差最后一步：填入 API Key';
+      $('wizardTitle').textContent = T('💡 还差最后一步：填入 API Key');
       const items = [];
-      if (!d.llm_api_key_set) items.push('<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>');
-      if (!d.embedding_api_key_set) items.push('<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>');
+      if (!d.llm_api_key_set) items.push(T('<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>'));
+      if (!d.embedding_api_key_set) items.push(T('<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>'));
       $('wizardBody').innerHTML = `
         <ul>${items.join('')}</ul>
-        <p style="margin:8px 0;font-size:13px;">前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。</p>
+        <p style="margin:8px 0;font-size:13px;">${T('前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。')}</p>
         <div class="actions">
-          <button class="btn btn-primary" onclick="showPage('llm')">⚙️ 去配置 API Key</button>
-          <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+          <button class="btn btn-primary" onclick="showPage('llm')">${T('⚙️ 去配置 API Key')}</button>
+          <button class="btn btn-secondary" id="btnRecheck">${T('🔄 重新检测')}</button>
         </div>`;
       rebindRecheck();
     } else {
@@ -956,14 +1029,14 @@ function renderWizard(s) {
   } else {
     banner.classList.add('show');
     banner.classList.remove('ok');
-    $('wizardTitle').textContent = '⚠️ 检测到系统未完成初始化';
+    $('wizardTitle').textContent = T('⚠️ 检测到系统未完成初始化');
     $('wizardBody').innerHTML = `
-      <p style="margin:8px 0;color:#78350f;font-size:13px;">系统检测到以下问题：</p>
+      <p style="margin:8px 0;color:#78350f;font-size:13px;">${T('系统检测到以下问题：')}</p>
       <ul>${s.issues.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
-      <p style="margin:8px 0;color:#78350f;font-size:13px;">点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。</p>
+      <p style="margin:8px 0;color:#78350f;font-size:13px;">${T('点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。')}</p>
       <div class="actions">
-        <button class="btn btn-primary" id="btnInit">🚀 一键初始化</button>
-        <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+        <button class="btn btn-primary" id="btnInit">${T('🚀 一键初始化')}</button>
+        <button class="btn btn-secondary" id="btnRecheck">${T('🔄 重新检测')}</button>
       </div>`;
     rebindInit();
     rebindRecheck();
@@ -983,7 +1056,7 @@ async function runInit() {
   const btn = $('btnInit');
   if (!btn) return;
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>正在初始化…';
+  btn.innerHTML = T('<span class="spinner"></span>正在初始化…');
   try {
     const r = await API.request('/api/admin/init', { method: 'POST' });
     if (r.ok) {
@@ -993,16 +1066,16 @@ async function runInit() {
       banner.classList.remove('show');
       // re-render with success content
       banner.classList.add('show');
-      $('wizardTitle').textContent = '🎉 初始化完成！';
+      $('wizardTitle').textContent = T('🎉 初始化完成！');
       $('wizardBody').innerHTML = `
         <p style="margin:8px 0;color:#065f46;font-size:13px;">${escapeHtml(r.message)}</p>
         <ul style="color:#064e3b;">
           ${r.actions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
         </ul>
-        <p style="margin:8px 0;color:#065f46;font-size:13px;"><strong>下一步：</strong>前往「模型配置」填入 API Key 即可使用。</p>
+        <p style="margin:8px 0;color:#065f46;font-size:13px;">${T('<strong>下一步：</strong>前往「模型配置」填入 API Key 即可使用。')}</p>
         <div class="actions">
-          <button class="btn btn-primary" onclick="showPage('llm')">⚙️ 去配置 API Key</button>
-          <button class="btn btn-secondary" id="btnRecheck">🔄 重新检测</button>
+          <button class="btn btn-primary" onclick="showPage('llm')">${T('⚙️ 去配置 API Key')}</button>
+          <button class="btn btn-secondary" id="btnRecheck">${T('🔄 重新检测')}</button>
         </div>`;
       rebindRecheck();
       // Refresh data on the page silently
@@ -1013,8 +1086,8 @@ async function runInit() {
     }
   } catch (e) {
     btn.disabled = false;
-    btn.textContent = '🚀 一键初始化';
-    alert('初始化失败：' + e.message);
+    btn.textContent = T('🚀 一键初始化');
+    alert(T('初始化失败：') + e.message);
   }
 }
 
@@ -1041,10 +1114,12 @@ function refreshAfterInit(s) {
 let PROVIDERS = [];
 let CONFIG_CACHE = null;
 
-const PROTOCOL_LABELS = {
-  openai: 'OpenAI 兼容 (/chat/completions)',
-  anthropic: 'Anthropic 兼容 (/messages)',
-};
+// A function, not a const object: T() must run at render time, or the labels
+// would be frozen in whatever language the page loaded in.
+const protocolLabel = (proto) => ({
+  openai: T('OpenAI 兼容 (/chat/completions)'),
+  anthropic: T('Anthropic 兼容 (/messages)'),
+})[proto] || proto;
 
 async function loadProviders() {
   const data = await API.request('/api/config/providers');
@@ -1068,8 +1143,8 @@ async function loadProviders() {
     });
     sel.appendChild(og);
   };
-  addGroup('厂商', preset);
-  addGroup('自定义 / 自建', custom);
+  addGroup(T('厂商'), preset);
+  addGroup(T('自定义 / 自建'), custom);
 
   sel.addEventListener('change', () => onProviderChanged());
   $('llmProtocol').addEventListener('change', () => onProtocolChanged());
@@ -1100,15 +1175,15 @@ function renderProtocolOptions(preferred) {
   protos.forEach(proto => {
     const o = document.createElement('option');
     o.value = proto;
-    o.textContent = PROTOCOL_LABELS[proto] || proto;
+    o.textContent = protocolLabel(proto);
     sel.appendChild(o);
   });
   // Prefer the saved value, else OpenAI (the common case), else whatever exists.
   const want = [preferred, 'openai', protos[0]].find(x => x && protos.includes(x));
   sel.value = want;
   $('protocolHint').textContent = protos.length > 1
-    ? `该厂商支持 ${protos.length} 种协议，切换会自动更新 Base URL`
-    : '该厂商仅支持这一种协议';
+    ? fmt(T('该厂商支持 {0} 种协议，切换会自动更新 Base URL'), protos.length)
+    : T('该厂商仅支持这一种协议');
 }
 
 /** Vendor dropdown changed → refill protocol, base URL, model, then fetch models. */
@@ -1151,8 +1226,8 @@ function applyEndpointDefaults({ force = false } = {}) {
   if (!p.is_custom && ep && !$('embBaseUrl').value) $('embBaseUrl').value = ep.base_url || '';
   if (!$('embModel').value && p.default_embedding_model) $('embModel').value = p.default_embedding_model;
   $('embModelHint').textContent = p.default_embedding_model
-    ? `该厂商默认 embedding 模型：${p.default_embedding_model}`
-    : '该厂商未登记 embedding 模型，可填其他厂商的（Key / URL 要一致）';
+    ? fmt(T('该厂商默认 embedding 模型：{0}'), p.default_embedding_model)
+    : T('该厂商未登记 embedding 模型，可填其他厂商的（Key / URL 要一致）');
 }
 
 function syncCustomHints() {
@@ -1166,7 +1241,7 @@ function syncCustomHints() {
   // vendor's own docs, so nobody trusts a guessed URL with real billing.
   const hint = $('providerHint');
   if (p.verified === false) {
-    hint.innerHTML = `<span style="color:#b45309;">⚠ 此厂商的预填地址/模型未经核实，请对照厂商文档确认后再保存。</span>`
+    hint.innerHTML = T(`<span style="color:#b45309;">⚠ 此厂商的预填地址/模型未经核实，请对照厂商文档确认后再保存。</span>`)
                    + (p.notes ? `<br>${escapeHtml(p.notes)}` : '');
   } else {
     hint.textContent = p.notes || '';
@@ -1174,8 +1249,8 @@ function syncCustomHints() {
 
   const ep = currentEndpoint();
   $('llmModelHint').textContent = custom
-    ? '自定义厂商：填服务商给你的模型名，或点 🔄 尝试自动获取'
-    : (ep?.default_model ? `默认模型：${ep.default_model}（可从上方下拉换）` : '上方下拉选择，或手动输入');
+    ? T('自定义厂商：填服务商给你的模型名，或点 🔄 尝试自动获取')
+    : (ep?.default_model ? fmt(T('默认模型：{0}（可从上方下拉换）'), ep.default_model) : T('上方下拉选择，或手动输入'));
 }
 
 /**
@@ -1191,7 +1266,7 @@ async function refreshModelList({ auto = false, manual = false } = {}) {
   const sel = $('llmModelSelect');
   const loading = $('modelLoading');
   loading.style.display = 'inline';
-  sel.innerHTML = '<option value="">（获取中…）</option>';
+  sel.innerHTML = T('<option value="">（获取中…）</option>');
 
   const body = {
     provider: $('llmProvider').value,
@@ -1207,13 +1282,13 @@ async function refreshModelList({ auto = false, manual = false } = {}) {
     const models = r.models || [];
     sel.innerHTML = '';
     if (!models.length) {
-      sel.innerHTML = '<option value="">（无法获取，请手动输入）</option>';
+      sel.innerHTML = T('<option value="">（无法获取，请手动输入）</option>');
     } else {
       const ph = document.createElement('option');
       ph.value = '';
       ph.textContent = r.source === 'api'
-        ? `— 厂商接口返回 ${models.length} 个模型 —`
-        : `— 内置推荐 ${models.length} 个 —`;
+        ? fmt(T('— 厂商接口返回 {0} 个模型 —'), models.length)
+        : fmt(T('— 内置推荐 {0} 个 —'), models.length);
       sel.appendChild(ph);
       models.forEach(m => {
         const o = document.createElement('option');
@@ -1231,8 +1306,8 @@ async function refreshModelList({ auto = false, manual = false } = {}) {
     }
   } catch (e) {
     if (seq !== modelFetchSeq) return;
-    sel.innerHTML = '<option value="">（获取失败，请手动输入）</option>';
-    if (manual) showAlert($('llmErr'), '❌ 获取模型列表失败：' + e.message, 'error');
+    sel.innerHTML = T('<option value="">（获取失败，请手动输入）</option>');
+    if (manual) showAlert($('llmErr'), T('❌ 获取模型列表失败：') + e.message, 'error');
   } finally {
     if (seq === modelFetchSeq) loading.style.display = 'none';
   }
@@ -1243,14 +1318,15 @@ $('btnResetLlmDefaults').addEventListener('click', () => {
   const ep = currentEndpoint();
   if (!p) return;
   if (p.is_custom) {
-    showAlert($('llmErr'), '自定义厂商没有默认值，请手动填写 Base URL 和模型名。', 'error');
+    showAlert($('llmErr'), T('自定义厂商没有默认值，请手动填写 Base URL 和模型名。'), 'error');
     return;
   }
   if (ep) {
     $('llmBaseUrl').value = ep.base_url || '';
     $('llmModel').value = ep.default_model || '';
   }
-  showAlert($('llmOk'), `✅ 已填入 ${p.display_name} · ${$('llmProtocol').value} 的默认值（记得点保存）`);
+  showAlert($('llmOk'), fmt(T('✅ 已填入 {0} · {1} 的默认值（记得点保存）'),
+    p.display_name, $('llmProtocol').value));
 });
 
 async function loadConfig() {
@@ -1264,7 +1340,7 @@ async function loadConfig() {
   if (!$('llmProvider').value) $('llmProvider').selectedIndex = 0;
   renderProtocolOptions(c.protocol || 'openai');
   $('llmApiKey').value = '';
-  $('llmApiKey').placeholder = c.model_api_key ? `已保存 ${c.model_api_key}（留空则不修改）` : 'sk-xxxxxxxx';
+  $('llmApiKey').placeholder = c.model_api_key ? fmt(T('已保存 {0}（留空则不修改）'), c.model_api_key) : 'sk-xxxxxxxx';
   $('llmBaseUrl').value = c.model_base_url || '';
   $('llmModel').value = c.model_name || '';
   $('llmTemp').value = c.temperature ?? 0.3;
@@ -1273,7 +1349,7 @@ async function loadConfig() {
   // --- 向量模型 ---
   const emb = c.embedding || {};
   $('embApiKey').value = '';
-  $('embApiKey').placeholder = emb.api_key ? `已保存 ${emb.api_key}（留空则不修改）` : 'sk-xxxxxxxx';
+  $('embApiKey').placeholder = emb.api_key ? fmt(T('已保存 {0}（留空则不修改）'), emb.api_key) : 'sk-xxxxxxxx';
   $('embBaseUrl').value = emb.base_url || '';
   $('embModel').value = emb.model || '';
   $('embDim').value = emb.dim || 1024;
@@ -1291,7 +1367,7 @@ async function loadConfig() {
   $('vecPersist').value = c.vector_db?.persist_directory || './data/chroma_db';
   $('vecMilvusUri').value = c.vector_db?.milvus_uri || './data/milvus.db';
   $('vecMilvusToken').value = '';
-  $('vecMilvusToken').placeholder = c.vector_db?.milvus_token ? '已保存（留空则不修改）' : '留空即可';
+  $('vecMilvusToken').placeholder = c.vector_db?.milvus_token ? T('已保存（留空则不修改）') : T('留空即可');
   $('vecMilvusDbName').value = c.vector_db?.milvus_db_name || '';
   toggleQdrantFields();
 
@@ -1326,9 +1402,9 @@ function toggleQdrantFields() {
   $('chromaPersistField').style.display  = p === 'chroma' ? 'block' : 'none';
   $('vecDimStrict').style.display        = p === 'milvus' ? 'inline' : 'none';
   const hints = {
-    chroma: '本地文件持久化，开箱即用，无需额外服务。',
-    qdrant: '需要先启动 Qdrant 服务：docker compose up -d qdrant',
-    milvus: 'URI 填 .db 路径 → Milvus Lite（零安装）；填 http://host:19530 → 连服务器。',
+    chroma: T('本地文件持久化，开箱即用，无需额外服务。'),
+    qdrant: T('需要先启动 Qdrant 服务：docker compose up -d qdrant'),
+    milvus: T('URI 填 .db 路径 → Milvus Lite（零安装）；填 http://host:19530 → 连服务器。'),
   };
   $('vecProviderHint').textContent = hints[p] || '';
 }
@@ -1343,11 +1419,11 @@ function llmPatch(alertEl) {
   const baseUrl = $('llmBaseUrl').value.trim();
   const model = $('llmModel').value.trim();
   if (!baseUrl) {
-    showAlert(alertEl, '❌ Base URL 不能为空' + (p?.is_custom ? '（自定义厂商必须手填）' : ''), 'error');
+    showAlert(alertEl, T('❌ Base URL 不能为空') + (p?.is_custom ? T('（自定义厂商必须手填）') : ''), 'error');
     return null;
   }
   if (!model) {
-    showAlert(alertEl, '❌ 模型名称不能为空', 'error');
+    showAlert(alertEl, T('❌ 模型名称不能为空'), 'error');
     return null;
   }
   const patch = {
@@ -1370,12 +1446,12 @@ $('btnSave').addEventListener('click', async () => {
   try {
     const cur = await API.request('/api/config');
     await API.request('/api/config', { method: 'PUT', body: { ...cur, ...patch } });
-    showAlert($('llmOk'), '✅ 对话模型已保存，立即生效');
+    showAlert($('llmOk'), T('✅ 对话模型已保存，立即生效'));
     $('llmApiKey').value = '';
     await loadConfig();
     await checkInit();
   } catch (e) {
-    showAlert($('llmErr'), '❌ 保存失败：' + e.message, 'error');
+    showAlert($('llmErr'), T('❌ 保存失败：') + e.message, 'error');
   }
 });
 
@@ -1383,7 +1459,7 @@ $('btnTest').addEventListener('click', async () => {
   clearAlert($('llmOk')); clearAlert($('llmErr'));
   const patch = llmPatch($('llmErr'));
   if (!patch) return;
-  showAlert($('llmOk'), '⏳ 正在测试连接…', 'info');
+  showAlert($('llmOk'), T('⏳ 正在测试连接…'), 'info');
   try {
     // Persist first so the backend tests exactly what's on screen.
     const cur = await API.request('/api/config');
@@ -1408,17 +1484,17 @@ $('btnCopyFromLlm').addEventListener('click', () => {
   const llmKey = $('llmApiKey').value.trim();
   if (llmKey) {
     $('embApiKey').value = llmKey;
-    showAlert($('embOk'), '✅ 已复用对话模型的 Base URL 和你刚输入的 Key');
+    showAlert($('embOk'), T('✅ 已复用对话模型的 Base URL 和你刚输入的 Key'));
   } else {
-    showAlert($('embOk'), 'ℹ️ 已复用 Base URL。Key 请手动输入（已保存的密钥读不出来）', 'info');
+    showAlert($('embOk'), T('ℹ️ 已复用 Base URL。Key 请手动输入（已保存的密钥读不出来）'), 'info');
   }
 });
 
 function embPatch(alertEl) {
   const baseUrl = $('embBaseUrl').value.trim();
   const model = $('embModel').value.trim();
-  if (!baseUrl) { showAlert(alertEl, '❌ 向量模型 Base URL 不能为空', 'error'); return null; }
-  if (!model)   { showAlert(alertEl, '❌ 向量模型名称不能为空', 'error'); return null; }
+  if (!baseUrl) { showAlert(alertEl, T('❌ 向量模型 Base URL 不能为空'), 'error'); return null; }
+  if (!model)   { showAlert(alertEl, T('❌ 向量模型名称不能为空'), 'error'); return null; }
   const emb = {
     provider: 'openai_compatible',
     base_url: baseUrl,
@@ -1437,12 +1513,12 @@ $('btnSaveEmb').addEventListener('click', async () => {
   try {
     const cur = await API.request('/api/config');
     await API.request('/api/config', { method: 'PUT', body: { ...cur, embedding: { ...(cur.embedding || {}), ...emb } } });
-    showAlert($('embOk'), '✅ 向量模型已保存');
+    showAlert($('embOk'), T('✅ 向量模型已保存'));
     $('embApiKey').value = '';
     await loadConfig();
     await checkInit();
   } catch (e) {
-    showAlert($('embErr'), '❌ 保存失败：' + e.message, 'error');
+    showAlert($('embErr'), T('❌ 保存失败：') + e.message, 'error');
   }
 });
 
@@ -1450,7 +1526,7 @@ $('btnTestEmb').addEventListener('click', async () => {
   clearAlert($('embOk')); clearAlert($('embErr'));
   const emb = embPatch($('embErr'));
   if (!emb) return;
-  showAlert($('embOk'), '⏳ 正在测试并探测维度…', 'info');
+  showAlert($('embOk'), T('⏳ 正在测试并探测维度…'), 'info');
   try {
     const cur = await API.request('/api/config');
     await API.request('/api/config', { method: 'PUT', body: { ...cur, embedding: { ...(cur.embedding || {}), ...emb } } });
@@ -1471,7 +1547,7 @@ $('btnTestEmb').addEventListener('click', async () => {
             vector_db: { ...(cur2.vector_db || {}), embedding_dimension: r.dim },
           },
         });
-        showAlert($('embOk'), `✅ ${r.message} — 已自动把维度改为 ${r.dim}`, 'success');
+        showAlert($('embOk'), fmt(T('✅ {0} — 已自动把维度改为 {1}'), r.message, r.dim), 'success');
       }
       await loadConfig();
       await checkInit();
@@ -1501,7 +1577,7 @@ $('btnSaveVec').addEventListener('click', async () => {
     if (tok) vec.milvus_token = tok;
     await API.request('/api/config', { method: 'PUT', body: { ...cur, vector_db: vec } });
     $('vecMilvusToken').value = '';
-    showAlert($('vecInfo'), '✅ 已保存。注意：切换向量库需要重启后端 + 重新入库文档。', 'info');
+    showAlert($('vecInfo'), T('✅ 已保存。注意：切换向量库需要重启后端 + 重新入库文档。'), 'info');
     await loadConfig();
   } catch (e) {
     showAlert($('vecInfo'), '❌ ' + e.message, 'error');
@@ -1512,12 +1588,12 @@ $('btnSaveVec').addEventListener('click', async () => {
 function syncAllowHint() {
   const on = $('ragAllowModelKnowledge').checked;
   $('ragAllowHint').innerHTML = on
-    ? '<span style="color:#b45309;">已开启：</span>检索不到内容时，AI 会用自己的知识回答，'
-      + '不会再说「知识库中没有相关信息」。<br>'
-      + '⚠ 这类回答<strong>不保证准确</strong>（可能过时或编造），且用户无法区分哪句来自你的资料。'
-      + '涉及价格、政策、承诺等场景建议关闭。'
-    : '<span style="color:#065f46;">已关闭（默认）：</span>只依据知识库回答，检索不到就明确说「没有相关信息」。'
-      + '每句话都能追溯到你上传的文档。';
+    ? T('<span style="color:#b45309;">已开启：</span>检索不到内容时，AI 会用自己的知识回答，')
+      + T('不会再说「知识库中没有相关信息」。<br>')
+      + T('⚠ 这类回答<strong>不保证准确</strong>（可能过时或编造），且用户无法区分哪句来自你的资料。')
+      + T('涉及价格、政策、承诺等场景建议关闭。')
+    : T('<span style="color:#065f46;">已关闭（默认）：</span>只依据知识库回答，检索不到就明确说「没有相关信息」。')
+      + T('每句话都能追溯到你上传的文档。');
 }
 $('ragAllowModelKnowledge').addEventListener('change', syncAllowHint);
 
@@ -1537,8 +1613,8 @@ $('btnSaveAnswerMode').addEventListener('click', async () => {
     });
     showAlert($('answerModeOk'),
       $('ragAllowModelKnowledge').checked
-        ? '✅ 已开启自主回答，立即生效'
-        : '✅ 已关闭自主回答，仅依据知识库回答');
+        ? T('✅ 已开启自主回答，立即生效')
+        : T('✅ 已关闭自主回答，仅依据知识库回答'));
   } catch (e) {
     showAlert($('answerModeErr'), '❌ ' + e.message, 'error');
   }
@@ -1549,7 +1625,7 @@ $('btnSaveRag').addEventListener('click', async () => {
   const size = +$('ragChunkSize').value;
   const overlap = +$('ragChunkOverlap').value;
   if (overlap >= size) {
-    showAlert($('ragErr'), `❌ Chunk Overlap (${overlap}) 必须小于 Chunk Size (${size})`, 'error');
+    showAlert($('ragErr'), fmt(T('❌ Chunk Overlap ({0}) 必须小于 Chunk Size ({1})'), overlap, size), 'error');
     return;
   }
   try {
@@ -1570,7 +1646,7 @@ $('btnSaveRag').addEventListener('click', async () => {
       },
     };
     await API.request('/api/config', { method: 'PUT', body });
-    showAlert($('ragOk'), '✅ RAG 设置已保存。注意：已入库的文档需要重新入库才会按新设置切分。');
+    showAlert($('ragOk'), T('✅ RAG 设置已保存。注意：已入库的文档需要重新入库才会按新设置切分。'));
   } catch (e) {
     showAlert($('ragErr'), '❌ ' + e.message, 'error');
   }
@@ -1578,8 +1654,8 @@ $('btnSaveRag').addEventListener('click', async () => {
 
 /* ----------- 切分预览 ----------- */
 const STRATEGY_HINTS = {
-  structure: '识别【章节】、Markdown 标题、第X章、Q&A、Excel 工作表，沿语义边界切分。多数文档用这个。',
-  window: '不看结构，每 N 字硬切一刀。只在文档完全没有标题结构时才需要。',
+  structure: T('识别【章节】、Markdown 标题、第X章、Q&A、Excel 工作表，沿语义边界切分。多数文档用这个。'),
+  window: T('不看结构，每 N 字硬切一刀。只在文档完全没有标题结构时才需要。'),
 };
 function syncStrategyHint() {
   $('ragStrategyHint').textContent = STRATEGY_HINTS[$('ragStrategy').value] || '';
@@ -1600,7 +1676,7 @@ async function populatePreviewDocs() {
   const keep = sel.value;
   try {
     const docs = await API.request('/api/documents/list');
-    sel.innerHTML = '<option value="">（粘贴文本）</option>';
+    sel.innerHTML = T('<option value="">（粘贴文本）</option>');
     docs.forEach(d => {
       const o = document.createElement('option');
       o.value = d.id;
@@ -1618,11 +1694,11 @@ async function runSplitPreview() {
   const docId = $('previewDocSelect').value;
   const text = $('previewText').value.trim();
   if (!docId && !text) {
-    stats.innerHTML = '<span style="color:#9ca3af;">请选择一个文档，或在下方粘贴文本。</span>';
+    stats.innerHTML = T('<span style="color:#9ca3af;">请选择一个文档，或在下方粘贴文本。</span>');
     box.innerHTML = '';
     return;
   }
-  stats.innerHTML = '<span class="spinner-sm"></span>正在切分…';
+  stats.innerHTML = T('<span class="spinner-sm"></span>正在切分…');
   box.innerHTML = '';
   try {
     const r = await API.request('/api/documents/split-preview', {
@@ -1636,19 +1712,19 @@ async function runSplitPreview() {
         prefix_heading: $('ragPrefixHeading').checked,
       },
     });
-    const strategyLabel = r.strategy === 'structure' ? '结构感知' : '固定窗口';
+    const strategyLabel = r.strategy === 'structure' ? T('结构感知') : T('固定窗口');
     stats.innerHTML =
-      `<strong>${escapeHtml(r.source)}</strong> · ${r.total_chars} 字 → ` +
-      `<strong style="color:#3b82f6;">${r.chunk_count} 个片段</strong> · ` +
-      `策略 ${strategyLabel} · 片段长度 最小 ${r.min_chars} / 平均 ${r.avg_chars} / 最大 ${r.max_chars} 字` +
-      (r.truncated ? ' <span style="color:#b45309;">（仅显示前 60 个）</span>' : '');
+      fmt(T('<strong>{0}</strong> · {1} 字 → '), escapeHtml(r.source), r.total_chars) +
+      fmt(T('<strong style="color:#3b82f6;">{0} 个片段</strong> · '), r.chunk_count) +
+      fmt(T('策略 {0} · 片段长度 最小 {1} / 平均 {2} / 最大 {3} 字'), strategyLabel, r.min_chars, r.avg_chars, r.max_chars) +
+      (r.truncated ? T(' <span style="color:#b45309;">（仅显示前 60 个）</span>') : '');
 
     box.innerHTML = r.chunks.map(c => `
       <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin-bottom:8px;background:#fafafa;">
         <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">
           #${c.index}
-          ${c.heading ? `· <span style="color:#3b82f6;font-weight:600;">${escapeHtml(c.heading)}</span>` : '· <span style="color:#9ca3af;">(无标题)</span>'}
-          · ${c.chars} 字
+          ${c.heading ? `· <span style="color:#3b82f6;font-weight:600;">${escapeHtml(c.heading)}</span>` : T('· <span style="color:#9ca3af;">(无标题)</span>')}
+          ${fmt(T('· {0} 字'), c.chars)}
         </div>
         <div style="font-size:13px;white-space:pre-wrap;line-height:1.6;color:#1f2937;">${escapeHtml(c.text)}</div>
       </div>`).join('');
@@ -1670,7 +1746,7 @@ $('btnSaveAgent').addEventListener('click', async () => {
       welcome_message: $('agentWelcome').value,
     };
     await API.request('/api/config', { method: 'PUT', body });
-    showAlert($('agentOk'), '✅ 客服信息已保存');
+    showAlert($('agentOk'), T('✅ 客服信息已保存'));
   } catch (e) {
     showAlert($('agentOk'), '❌ ' + e.message, 'error');
   }
@@ -1694,28 +1770,28 @@ fileInput.addEventListener('change', e => {
 async function handleUpload(file) {
   const a = $('upAlert');
   a.className = 'alert alert-info show';
-  a.textContent = `⏳ 正在上传 ${file.name}（${(file.size/1024).toFixed(1)} KB）…`;
+  a.textContent = fmt(T('⏳ 正在上传 {0}（{1} KB）…'), file.name, (file.size/1024).toFixed(1));
   try {
     const fd = new FormData();
     fd.append('file', file);
     const r = await fetch(API.url + '/api/documents/upload', { method: 'POST', body: fd });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error?.message || 'HTTP ' + r.status);
-    a.textContent = `✅ 上传成功：${data.filename} (${data.file_size} 字节)`;
+    a.textContent = fmt(T('✅ 上传成功：{0} ({1} 字节)'), data.filename, data.file_size);
     a.className = 'alert alert-success show';
     setTimeout(async () => {
-      a.textContent = `⏳ 正在解析 + embedding + 入库…`;
+      a.textContent = T(`⏳ 正在解析 + embedding + 入库…`);
       try {
         const pr = await API.request('/api/documents/process', { method: 'POST', body: { document_id: data.id } });
         if (pr.status === 'ready') {
-          a.textContent = `✅ 入库成功：${pr.chunk_count} 个片段`;
+          a.textContent = fmt(T('✅ 入库成功：{0} 个片段'), pr.chunk_count);
           a.className = 'alert alert-success show';
         } else {
-          a.textContent = `⚠️ 入库失败：${pr.error_message || '未知错误'}`;
+          a.textContent = fmt(T('⚠️ 入库失败：{0}'), pr.error_message || T('未知错误'));
           a.className = 'alert alert-error show';
         }
       } catch (e) {
-        a.textContent = `⚠️ 入库失败：${e.message}`;
+        a.textContent = fmt(T('⚠️ 入库失败：{0}'), e.message);
         a.className = 'alert alert-error show';
       }
       loadDocs();
@@ -1729,18 +1805,18 @@ async function handleUpload(file) {
 
 async function loadDocs() {
   const box = $('docsContainer');
-  box.innerHTML = '<div class="empty">加载中…</div>';
+  box.innerHTML = T('<div class="empty">加载中…</div>');
   try {
     const docs = await API.request('/api/documents/list');
     if (!docs.length) {
-      box.innerHTML = '<div class="empty">还没有文档，拖一个文件到上面开始吧。</div>';
-      $('dashDocs').textContent = '0 个文档';
+      box.innerHTML = T('<div class="empty">还没有文档，拖一个文件到上面开始吧。</div>');
+      $('dashDocs').textContent = T('0 个文档');
       stopDocsPolling();
       return;
     }
-    let html = '<table><thead><tr><th>文件名</th><th>大小</th><th>分片数</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+    let html = T('<table><thead><tr><th>文件名</th><th>大小</th><th>分片数</th><th>状态</th><th>操作</th></tr></thead><tbody>');
     for (const d of docs) {
-      const statusLabel = ({uploaded:'已上传', processing:'处理中', ready:'就绪', failed:'失败'})[d.status] || d.status;
+      const statusLabel = ({uploaded:T('已上传'), processing:T('处理中'), ready:T('就绪'), failed:T('失败')})[d.status] || d.status;
       const canProcess = (d.status === 'uploaded' || d.status === 'failed');
       // While ingesting, show real progress instead of a bare "处理中" that
       // gives no clue whether anything is happening.
@@ -1760,20 +1836,20 @@ async function loadDocs() {
         <td>${chunkCell}</td>
         <td><span class="status-pill status-${d.status}">${pill}</span></td>
         <td>
-          ${canProcess ? `<button class="btn btn-secondary" onclick="processDoc('${d.id}')">入库</button> ` : ''}
-          <button class="btn btn-danger" onclick="deleteDoc('${d.id}')">删除</button>
+          ${canProcess ? `<button class="btn btn-secondary" onclick="processDoc('${d.id}')">${T('入库')}</button> ` : ''}
+          <button class="btn btn-danger" onclick="deleteDoc('${d.id}')">${T('删除')}</button>
         </td>
       </tr>`;
     }
     html += '</tbody></table>';
     box.innerHTML = html;
     const ready = docs.filter(d => d.status === 'ready').length;
-    $('dashDocs').textContent = `${docs.length} 个文档（${ready} 个已入库）`;
+    $('dashDocs').textContent = fmt(T('{0} 个文档（{1} 个已入库）'), docs.length, ready);
 
     // Auto-refresh only while something is actually in flight.
     docs.some(d => d.status === 'processing') ? startDocsPolling() : stopDocsPolling();
   } catch (e) {
-    box.innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`;
+    box.innerHTML = fmt(T('<div class="empty">加载失败：{0}</div>'), escapeHtml(e.message));
     stopDocsPolling();
   }
 }
@@ -1800,16 +1876,16 @@ async function processDoc(id) {
   startDocsPolling();
   API.request('/api/documents/process', { method: 'POST', body: { document_id: id } })
     .then(() => loadDocs())
-    .catch(e => { alert('入库失败：' + e.message); loadDocs(); });
+    .catch(e => { alert(T('入库失败：') + e.message); loadDocs(); });
   setTimeout(loadDocs, 600);
 }
 async function deleteDoc(id) {
-  if (!confirm('确认删除该文档及其向量？')) return;
+  if (!confirm(T('确认删除该文档及其向量？'))) return;
   try {
     await API.request('/api/documents/' + id, { method: 'DELETE' });
     loadDocs();
   } catch (e) {
-    alert('删除失败：' + e.message);
+    alert(T('删除失败：') + e.message);
   }
 }
 
@@ -1839,9 +1915,9 @@ function mountChat() {
   const abs = new URL(src, location.href).href;
   if (frame.src !== abs) {
     frame.src = src;
-    status.textContent = '正在加载…';
-    frame.onload = () => { status.textContent = '已加载 · 可以开始提问'; };
-    frame.onerror = () => { status.textContent = '加载失败'; };
+    status.textContent = T('正在加载…');
+    frame.onload = () => { status.textContent = T('已加载 · 可以开始提问'); };
+    frame.onerror = () => { status.textContent = T('加载失败'); };
   }
 }
 
@@ -1871,8 +1947,8 @@ function copyEmbedCode() {
   });
 <\/script>`;
   navigator.clipboard?.writeText(code).then(
-    () => alert('已复制到剪贴板'),
-    () => prompt('复制以下代码：', code)
+    () => alert(T('已复制到剪贴板')),
+    () => prompt(T('复制以下代码：'), code)
   );
 }
 
@@ -1906,15 +1982,15 @@ document.addEventListener('keydown', e => {
 
 /* ----- 打赏 ----- */
 const PAY_METHODS = {
-  wechat: { img: '/assets/wechat.png', label: '微信',   hint: '用微信扫一扫' },
-  alipay: { img: '/assets/alipay.png', label: '支付宝', hint: '用支付宝扫一扫' },
-  qq:     { img: '/assets/qq.png',     label: 'QQ',     hint: '用 QQ 扫一扫' },
+  wechat: { img: '/assets/wechat.png', label: T('微信'),   hint: T('用微信扫一扫') },
+  alipay: { img: '/assets/alipay.png', label: T('支付宝'), hint: T('用支付宝扫一扫') },
+  qq:     { img: '/assets/qq.png',     label: 'QQ',     hint: T('用 QQ 扫一扫') },
 };
 function selectPay(key) {
   const m = PAY_METHODS[key];
   if (!m) return;
   $('qrImg').src = m.img;
-  $('qrImg').alt = m.label + '赞赏码';
+  $('qrImg').alt = m.label + T('赞赏码');
   $('qrHint').textContent = m.hint;
   $('payTabs').querySelectorAll('.pay-tab').forEach(b => {
     b.classList.toggle('active', b.dataset.pay === key);
@@ -1953,7 +2029,7 @@ async function checkUpdate({ silent = false } = {}) {
     return r;
   } catch (e) {
     if (!silent) {
-      renderUpdateModal({ ok: false, message: '检查失败：' + e.message, current: '—' });
+      renderUpdateModal({ ok: false, message: T('检查失败：') + e.message, current: '—' });
     }
   } finally {
     btn.disabled = false; btn.classList.remove('spin');
@@ -1967,40 +2043,39 @@ function renderUpdateModal(r) {
 
   if (r.configured === false) {
     html = `
-      <p class="modal-desc">还没有配置 GitHub 仓库，无法比对版本。</p>
-      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
+      <p class="modal-desc">${T('还没有配置 GitHub 仓库，无法比对版本。')}</p>
+      <div class="upd-row"><span class="k">${T('当前版本')}</span><span class="v">${esc(r.current)}</span></div>
       <p class="modal-desc" style="margin-top:14px;">
-        在 <code>backend/.env</code> 里加上仓库地址后重启即可：
+        ${T('在 <code>backend/.env</code> 里加上仓库地址后重启即可：')}
       </p>
       <div class="upd-cmd">APP_GITHUB_REPO=owner/repo</div>`;
   } else if (!r.ok) {
     html = `
-      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
+      <div class="upd-row"><span class="k">${T('当前版本')}</span><span class="v">${esc(r.current)}</span></div>
       <p class="modal-desc" style="margin-top:14px;color:#991b1b;">${esc(r.message)}</p>`;
   } else if (r.has_update) {
     html = `
-      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
-      <div class="upd-row"><span class="k">最新版本</span>
+      <div class="upd-row"><span class="k">${T('当前版本')}</span><span class="v">${esc(r.current)}</span></div>
+      <div class="upd-row"><span class="k">${T('最新版本')}</span>
         <span class="v" style="color:#059669;">${esc(r.latest)} 🎉</span></div>
       ${r.notes ? `<div class="upd-note">${esc(r.notes)}</div>` : ''}
       <p class="modal-desc" style="margin-top:14px;">
-        更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。
-        在服务器上执行：
+        ${T('更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：')}
       </p>
-      <div class="upd-cmd">cd &lt;项目目录&gt;
+      <div class="upd-cmd">cd &lt;${T('项目目录')}&gt;
 git pull
 cd backend &amp;&amp; pip install -r requirements.txt
 # Docker: docker compose -f docker-compose.prod.yml up -d --build
 # systemd: sudo systemctl restart ics</div>
       <div class="btn-group" style="margin-top:14px;">
-        <button class="btn btn-secondary" id="btnCopyUpdCmd">📋 复制命令</button>
+        <button class="btn btn-secondary" id="btnCopyUpdCmd">${T('📋 复制命令')}</button>
         ${r.release_url ? `<a class="btn btn-primary" href="${esc(r.release_url)}"
-             target="_blank" rel="noopener noreferrer">查看发布说明 ↗</a>` : ''}
+             target="_blank" rel="noopener noreferrer">${T('查看发布说明 ↗')}</a>` : ''}
       </div>`;
   } else {
     html = `
-      <div class="upd-row"><span class="k">当前版本</span><span class="v">${esc(r.current)}</span></div>
-      <div class="upd-row"><span class="k">最新版本</span><span class="v">${esc(r.latest)}</span></div>
+      <div class="upd-row"><span class="k">${T('当前版本')}</span><span class="v">${esc(r.current)}</span></div>
+      <div class="upd-row"><span class="k">${T('最新版本')}</span><span class="v">${esc(r.latest)}</span></div>
       <p class="modal-desc" style="margin-top:14px;color:#065f46;">✅ ${esc(r.message)}</p>`;
   }
 
@@ -2010,8 +2085,8 @@ cd backend &amp;&amp; pip install -r requirements.txt
     copyBtn.addEventListener('click', () => {
       const cmd = box.querySelector('.upd-cmd')?.textContent || '';
       navigator.clipboard?.writeText(cmd).then(
-        () => { copyBtn.textContent = '✓ 已复制'; setTimeout(() => copyBtn.textContent = '📋 复制命令', 1800); },
-        () => prompt('复制以下命令：', cmd)
+        () => { copyBtn.textContent = T('✓ 已复制'); setTimeout(() => copyBtn.textContent = T('📋 复制命令'), 1800); },
+        () => prompt(T('复制以下命令：'), cmd)
       );
     });
   }

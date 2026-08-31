@@ -14,6 +14,13 @@ from ..adapters.base import LLMMessage
 from ..core.config import get_settings
 from ..core.database import get_db
 from ..core.exceptions import LLMError
+from ..core.i18n import (
+    DEFAULT_LANG,
+    ERROR_PREFIX,
+    NEW_SESSION_TITLE,
+    normalize_lang,
+    pick,
+)
 from ..services.rag_service import RAGService
 from ..services.session_service import SessionService
 from ..utils.sse import sse_pack
@@ -28,12 +35,17 @@ class ChatIn(BaseModel):
     message: str = Field(..., min_length=1)
     agent_name: Optional[str] = None
     history: Optional[List[dict]] = None  # optional override; else loaded from session
+    # UI language resolved by the client (see frontend/shared/locale.js). Drives
+    # the answer's language and the canned refusal. Unknown/absent values fall
+    # back to zh-CN, so clients predating this field behave exactly as before.
+    lang: Optional[str] = None
 
 
 class ChatOut(BaseModel):
     session_id: str
     answer: str
     sources: list = Field(default_factory=list)
+    lang: str = DEFAULT_LANG
 
 
 # ----- Helpers ---------------------------------------------------------
@@ -60,10 +72,14 @@ def _history_to_llm(history: List[dict]) -> List[LLMMessage]:
 async def chat(body: ChatIn, db: AsyncSession = Depends(get_db)) -> ChatOut:
     settings = get_settings()
     session_svc = SessionService(db)
+    lang = normalize_lang(body.lang)
 
     session_id = body.session_id
     if not session_id:
-        sess = await session_svc.create_session(title=body.message[:30] or "新会话")
+        sess = await session_svc.create_session(
+            title=body.message[:30] or pick(NEW_SESSION_TITLE, lang),
+            meta={"lang": lang},
+        )
         session_id = sess.id
 
     # Persist user turn
@@ -78,7 +94,10 @@ async def chat(body: ChatIn, db: AsyncSession = Depends(get_db)) -> ChatOut:
     rag = RAGService(settings)
     try:
         answer, sources = await rag.ask(
-            body.message, history=history_llm, agent_name=body.agent_name or "智能客服小助手"
+            body.message,
+            history=history_llm,
+            agent_name=body.agent_name,
+            lang=lang,
         )
     except LLMError as e:
         raise
@@ -86,7 +105,7 @@ async def chat(body: ChatIn, db: AsyncSession = Depends(get_db)) -> ChatOut:
         await rag.aclose()
 
     await session_svc.add_message(session_id, "assistant", answer, sources=sources)
-    return ChatOut(session_id=session_id, answer=answer, sources=sources)
+    return ChatOut(session_id=session_id, answer=answer, sources=sources, lang=lang)
 
 
 @router.post("/stream", summary="Streaming RAG chat via SSE")
@@ -101,14 +120,18 @@ async def chat_stream(body: ChatIn, db: AsyncSession = Depends(get_db)) -> Strea
     """
     settings = get_settings()
     session_svc = SessionService(db)
+    lang = normalize_lang(body.lang)
 
     async def gen() -> AsyncIterator[bytes]:
         session_id = body.session_id
         if not session_id:
-            sess = await session_svc.create_session(title=body.message[:30] or "新会话")
+            sess = await session_svc.create_session(
+                title=body.message[:30] or pick(NEW_SESSION_TITLE, lang),
+                meta={"lang": lang},
+            )
             session_id = sess.id
 
-        yield _sse("meta", {"session_id": session_id})
+        yield _sse("meta", {"session_id": session_id, "lang": lang})
         await session_svc.add_message(session_id, "user", body.message)
 
         history_llm: List[LLMMessage] = []
@@ -124,7 +147,8 @@ async def chat_stream(body: ChatIn, db: AsyncSession = Depends(get_db)) -> Strea
             async for token, sources in rag.stream_ask(
                 body.message,
                 history=history_llm,
-                agent_name=body.agent_name or "智能客服小助手",
+                agent_name=body.agent_name,
+                lang=lang,
             ):
                 if sources is not None:
                     sources_payload = sources
@@ -145,7 +169,7 @@ async def chat_stream(body: ChatIn, db: AsyncSession = Depends(get_db)) -> Strea
             yield _sse("done", {"ok": False})
             try:
                 await session_svc.add_message(
-                    session_id, "assistant", f"[错误] {e}", meta={"error": True}
+                    session_id, "assistant", f"{pick(ERROR_PREFIX, lang)} {e}", meta={"error": True}
                 )
             except Exception:
                 pass

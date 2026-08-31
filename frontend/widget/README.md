@@ -32,7 +32,9 @@ Service backend.
 | `autoOpen`     | boolean             | `false`                          | Auto-open on load |
 | `enableUpload` | boolean             | `true`                           | Show file-upload button |
 | `sessionId`    | string \| null      | `null`                           | Resume a prior session |
+| `lang`         | string              | `auto`                           | `auto` / `zh-CN` / `zh-TW` / `ja` / `en` — see [Language](#language) |
 | `onReady`      | function            | `null`                           | Called after init |
+| `onLangChange` | function            | `null`                           | Called after the visitor switches language |
 
 ## Public API
 
@@ -41,8 +43,27 @@ CustomerService.open();          // show panel
 CustomerService.close();         // hide panel
 CustomerService.toggle();        // toggle
 CustomerService.sendMessage(t);  // programmatic send
+CustomerService.setLang('ja');   // switch language
+CustomerService.getLang();       // current language code
 CustomerService.destroy();       // remove widget
 ```
+
+## Language
+
+The widget speaks 简体中文 / 繁體中文 / 日本語 / English, and picks the default
+**offline**: the browser's time zone gives the region (`Asia/Shanghai` →
+Simplified, `Asia/Taipei` / `Asia/Hong_Kong` / `Asia/Macau` → Traditional,
+`Asia/Tokyo` → Japanese, anything else → English), falling back to
+`navigator.languages` when the time zone is inconclusive.
+
+No IP geolocation is involved, deliberately: on an intranet the client address
+is `10.x` / `192.168.x` and carries no region, and an air-gapped deployment
+can't reach an online IP database anyway.
+
+The visitor can switch from the panel header. The choice persists in
+`localStorage` under `cs_lang` — the same key the admin console uses, so the two
+stay in sync. The active language is sent with every question, so **the AI's
+answers follow the UI language** even though the knowledge base is Chinese.
 
 ## File upload
 
@@ -54,7 +75,7 @@ extensions: `.txt`, `.docx`, `.xlsx`, `.pdf`. Server-side limit: 20 MB
 ## SSE events
 
 The widget consumes `POST /api/chat/stream` (SSE). Expected event types:
-`meta` (first; carries `session_id`), `token` (incremental text),
+`meta` (first; carries `session_id` and `lang`), `token` (incremental text),
 `sources` (final), `done`, `error`.
 
 ## iframe mode
@@ -79,7 +100,8 @@ Size and background both matter:
   occupy shows the iframe's own colour as a visible block.
 
 Accepted query params: `api`, `title`, `accent`, `position`, `autoOpen`,
-`upload`, `bg` (e.g. `bg=f4f6f9` to paint a backdrop).
+`upload`, `lang`, `bg` (e.g. `bg=f4f6f9` to paint a backdrop). `lang` is
+optional — without it the page detects the visitor's language itself.
 
 ## Cross-platform
 

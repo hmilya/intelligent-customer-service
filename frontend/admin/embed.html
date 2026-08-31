@@ -35,11 +35,9 @@
 </style>
 </head>
 <body>
-<div id="hint">
-  正在加载客服组件…<br>
-  如果长时间没反应，请检查浏览器控制台。
-</div>
+<div id="hint"></div>
 
+<script src="/shared/locale.js"></script>
 <script>
 (function () {
   // The API base can be passed in via ?api=... (the admin preview does this);
@@ -47,11 +45,51 @@
   const params = new URLSearchParams(location.search);
   const apiUrl = params.get('api') || location.origin;
 
+  /* -----------------------------------------------------------------------
+     Language
+     -----------------------------------------------------------------------
+     Resolved before anything is painted, so the loading text is already in the
+     visitor's language. Priority: ?lang= (the admin preview passes it) > a
+     previously saved manual choice > timezone region > browser language > en.
+     All of it offline — see shared/locale.js.
+  */
+  const L = window.CSLocale;
+  // detect() already layers ?lang= over the saved choice, the timezone region
+  // and navigator.languages, defaulting to English — all offline.
+  const lang = L ? L.detect().locale : 'zh-CN';
+  if (L) L.applyHtmlLang(lang);
+
+  const TEXT = {
+    'zh-CN': {
+      title: '智能客服',
+      loading: '正在加载客服组件…<br>如果长时间没反应，请检查浏览器控制台。',
+      failed: '❌ 无法加载 <code>customer-service.js</code><br>请确认后端已挂载 <code>/widget</code> 静态目录。',
+    },
+    'zh-TW': {
+      title: '智能客服',
+      loading: '正在載入客服元件…<br>如果長時間沒反應，請檢查瀏覽器主控台。',
+      failed: '❌ 無法載入 <code>customer-service.js</code><br>請確認後端已掛載 <code>/widget</code> 靜態目錄。',
+    },
+    ja: {
+      title: 'AIカスタマーサポート',
+      loading: 'サポートウィジェットを読み込み中…<br>反応がない場合はブラウザのコンソールを確認してください。',
+      failed: '❌ <code>customer-service.js</code> を読み込めません<br>バックエンドで <code>/widget</code> 静的ディレクトリがマウントされているか確認してください。',
+    },
+    en: {
+      title: 'Customer Service',
+      loading: 'Loading the support widget…<br>If nothing happens, check the browser console.',
+      failed: '❌ Could not load <code>customer-service.js</code><br>Check that the backend serves the <code>/widget</code> static directory.',
+    },
+  };
+  const S = TEXT[lang] || TEXT['zh-CN'];
+  document.title = S.title;
+  document.getElementById('hint').innerHTML = S.loading;
+
   // Only forward options the URL actually specified. Passing a default for
   // e.g. `title` would mark it as caller-supplied, and the widget would then
   // refuse to sync 客服名称 from GET /api/config — leaving the admin console's
   // value silently ignored.
-  const opts = { apiUrl: apiUrl };
+  const opts = { apiUrl: apiUrl, lang: lang };
   const pass = (name, key, transform) => {
     const raw = params.get(name);
     if (raw !== null && raw !== '') opts[key] = transform ? transform(raw) : raw;
@@ -85,9 +123,7 @@
     window.CustomerService.init(opts);
   };
   s.onerror = function () {
-    document.getElementById('hint').innerHTML =
-      '❌ 无法加载 <code>customer-service.js</code><br>' +
-      '请确认后端已挂载 <code>/widget</code> 静态目录。';
+    document.getElementById('hint').innerHTML = S.failed;
   };
   document.head.appendChild(s);
 })();

@@ -13,6 +13,8 @@ refusal behavior.
 """
 from __future__ import annotations
 
+from typing import Dict
+
 RAG_SYSTEM_PROMPT = """你是一名严谨、专业的智能客服，名叫 {agent_name}。
 
 【最高规则 — 必须遵守】
@@ -43,6 +45,17 @@ B. **解答类**（如"怎么做…""为什么…""是什么…"）
 - 网址直接写完整地址，界面会自动变成可点击链接。"""
 
 RAG_NO_HIT_REPLY = "抱歉，知识库中没有相关信息，我无法回答。"
+
+#: The refusal, per language. Returned **verbatim without an LLM call** when
+#: retrieval comes up empty and model knowledge is off, so it has to be a real
+#: translation rather than a prompt instruction.
+NO_HIT_REPLY: Dict[str, str] = {
+    "zh-CN": RAG_NO_HIT_REPLY,
+    "zh-TW": "抱歉，知識庫中沒有相關資訊，我無法回答。",
+    "ja": "申し訳ございません。ナレッジベースに関連する情報が見つからないため、お答えできません。",
+    "en": "Sorry, I couldn't find any relevant information in the knowledge base, so I'm unable to answer.",
+}
+
 
 # Slightly softer variant used when retrieval returned 0 hits at all.
 RAG_REFUSAL_HINT = "资料中未找到与该问题相关的内容。"
@@ -75,12 +88,82 @@ PARTIAL_KNOWLEDGE_RULE = """
 - 但涉及本站特有的信息（网址、价格、政策、栏目名、文章标题）时，只能用资料里的，不要自己编。"""
 
 
-def build_rag_user_prompt(question: str, context_blocks: list[str], max_chars: int = 8000) -> str:
+# ---------------------------------------------------------------------------
+# Output language
+# ---------------------------------------------------------------------------
+# The knowledge base is Chinese, but the visitor may be reading the widget in
+# Traditional Chinese, Japanese or English. Rather than maintaining four
+# separately-tuned copies of the (fragile) prompt above, we keep the Chinese
+# prompt as the single source of retrieval/refusal behaviour and append a
+# language directive.
+#
+# Each directive is written **in its own target language** — an English "answer
+# in Japanese" line inside an otherwise-Chinese prompt is measurably weaker at
+# holding the output language than the instruction written in Japanese itself.
+#
+# Appended AFTER ``.format()`` (like PARTIAL_KNOWLEDGE_RULE) so braces in the
+# text can never collide with the prompt's placeholders.
+OUTPUT_LANG_RULE: Dict[str, str] = {
+    # The base prompt is already Simplified Chinese — nothing to add.
+    "zh-CN": "",
+    "zh-TW": """
+
+【輸出語言 — 優先於上述任何格式要求】
+- 即使「參考資料」是簡體中文，你的回答**必須**使用繁體中文（台灣、香港通用字形）。
+- 用詞請符合繁體中文習慣（例如「資訊」而非「信息」、「網站」而非「网站」）。
+- 網址、電子郵件、產品名、專有名詞、程式碼一律保留原文，不要翻譯或改寫。""",
+    "ja": """
+
+【出力言語 — 上記のどの形式指示よりも優先】
+- 「参考資料」が中国語であっても、回答は**必ず日本語**で書いてください。
+- 自然で丁寧な日本語（です・ます調）を使ってください。
+- URL・メールアドレス・製品名・固有名詞・コードはそのまま原文を保持し、翻訳しないでください。
+- 資料に該当する内容がない場合の返答も日本語で書いてください。""",
+    "en": """
+
+[OUTPUT LANGUAGE — takes precedence over any formatting rule above]
+- Even though the reference material is in Chinese, you MUST write your answer in English.
+- Use natural, professional English suited to customer support.
+- Keep URLs, email addresses, product names, proper nouns and code verbatim — do not translate them.
+- If the material doesn't cover the question, write the refusal in English too.""",
+}
+
+
+#: Reinforcement placed at the very end of the user message. Instructions close
+#: to the end of the prompt are followed most reliably, and output language is
+#: the one rule we cannot afford the model to drop.
+_USER_LANG_REMINDER: Dict[str, str] = {
+    "zh-CN": "",
+    "zh-TW": "\n- 請使用**繁體中文**作答。",
+    "ja": "\n- **日本語**で回答してください。",
+    "en": "\n- Write your answer in **English**.",
+}
+
+
+def output_lang_rule(lang: str | None) -> str:
+    """System-prompt suffix pinning the answer's language (``""`` for zh-CN)."""
+    from ..core.i18n import pick
+
+    return pick(OUTPUT_LANG_RULE, lang)
+
+
+def build_rag_user_prompt(
+    question: str,
+    context_blocks: list[str],
+    max_chars: int = 8000,
+    lang: str | None = None,
+) -> str:
     """Render the user message that goes alongside the system prompt.
 
     ``context_blocks`` is a list of already-numbered chunks, e.g.
     ``["[1] 第一段资料", "[2] 第二段资料"]``. Order is preserved.
+
+    ``lang`` appends a final output-language reminder; the requirements block
+    itself stays Chinese so the retrieval/refusal wording is identical for
+    every language.
     """
+    from ..core.i18n import pick
+
     if not context_blocks:
         body = "(无参考资料)"
     else:
@@ -106,7 +189,7 @@ def build_rag_user_prompt(question: str, context_blocks: list[str], max_chars: i
 
 【回答要求】
 - 只依据上方参考资料回答，不要补充资料外的信息。
-- 资料里没有就说"抱歉，知识库中没有相关信息，我无法回答。"。
+- 资料里没有就说"{pick(NO_HIT_REPLY, lang)}"。
 - 推荐类问题：简短列表 + 网址，不展开细节。
 - 解答类问题：把答案讲完整，答完就不用再重复给网址。
-- 不要输出 [1]、[2] 这类资料编号，也不要用 # 标题。"""
+- 不要输出 [1]、[2] 这类资料编号，也不要用 # 标题。{pick(_USER_LANG_REMINDER, lang)}"""

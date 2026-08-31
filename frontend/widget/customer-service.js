@@ -5,13 +5,269 @@
  *   <script>CustomerService.init({ apiUrl: 'https://api.example.com' });</script>
  *
  * Public API on window.CustomerService:
- *   init({ apiUrl, configId, title, subtitle, accent, position, autoOpen, sessionId, onReady })
+ *   init({ apiUrl, configId, title, subtitle, accent, position, autoOpen, sessionId, lang, onReady })
  *   open() / close() / toggle()
  *   sendMessage(text)
+ *   setLang(code) / getLang() / resolveLang(input)
  *   destroy()
+ *
+ * Languages: zh-CN · zh-TW · ja · en. The default is picked from the visitor's
+ * region with no network access at all — see LOCALE CORE below.
  */
 (function () {
   'use strict';
+
+  // -------------------------------------------------------------------------
+  // LOCALE CORE — offline region/language detection
+  //
+  // ⚠ This is an inlined copy of frontend/shared/locale.js, which is the
+  // authoritative implementation. The widget is distributed as a single file
+  // (package.json ships only customer-service.js), so it cannot import it.
+  // selftest.mjs evals both and asserts resolve() agrees across a case table —
+  // if you change one and not the other, the test fails. Keep them in sync.
+  //
+  // Why no IP geolocation: the target is intranet/offline deployment. A 10.x
+  // address carries no region and no online geo API is reachable. So we use
+  // system timezone (→ region) with browser language as the fallback.
+  // -------------------------------------------------------------------------
+  var LANG_STORAGE_KEY = 'cs_lang';
+  var DEFAULT_LANG = 'en';
+
+  var LOCALE_LIST = [
+    { code: 'zh-CN', label: '简体中文', htmlLang: 'zh-CN' },
+    { code: 'zh-TW', label: '繁體中文', htmlLang: 'zh-TW' },
+    { code: 'ja',    label: '日本語',   htmlLang: 'ja'    },
+    { code: 'en',    label: 'English',  htmlLang: 'en'    }
+  ];
+  var SUPPORTED_LANGS = LOCALE_LIST.map(function (l) { return l.code; });
+
+  // Canonical IANA names + legacy aliases (modern engines canonicalise
+  // PRC → Asia/Shanghai etc., but old ones may return the alias verbatim).
+  var TZ_TO_LOCALE = {
+    'Asia/Shanghai': 'zh-CN', 'Asia/Chongqing': 'zh-CN', 'Asia/Chungking': 'zh-CN',
+    'Asia/Harbin': 'zh-CN', 'Asia/Urumqi': 'zh-CN', 'Asia/Kashgar': 'zh-CN', 'PRC': 'zh-CN',
+    'Asia/Taipei': 'zh-TW', 'ROC': 'zh-TW',
+    'Asia/Hong_Kong': 'zh-TW', 'Hongkong': 'zh-TW',
+    'Asia/Macau': 'zh-TW', 'Asia/Macao': 'zh-TW',
+    'Asia/Tokyo': 'ja', 'Japan': 'ja'
+  };
+  var TRADITIONAL_SUBTAGS = { hant: 1, cht: 1, tw: 1, hk: 1, mo: 1 };
+  var SIMPLIFIED_SUBTAGS = { hans: 1, chs: 1, cn: 1, sg: 1, my: 1 };
+
+  function isSupportedLang(code) {
+    return SUPPORTED_LANGS.indexOf(code) !== -1;
+  }
+
+  function langFromTag(tag) {
+    if (!tag) return null;
+    var parts = String(tag).toLowerCase().replace(/_/g, '-').split('-');
+    var primary = parts[0];
+    if (primary === 'ja') return 'ja';
+    if (primary === 'en') return 'en';
+    if (primary === 'zh' || primary === 'yue') {
+      var i;
+      for (i = 1; i < parts.length; i++) if (TRADITIONAL_SUBTAGS[parts[i]]) return 'zh-TW';
+      for (i = 1; i < parts.length; i++) if (SIMPLIFIED_SUBTAGS[parts[i]]) return 'zh-CN';
+      return primary === 'yue' ? 'zh-TW' : 'zh-CN';
+    }
+    // null (not 'en') so an ordered preference list keeps scanning: for
+    // ['fr-FR','zh-CN'] the answer should be zh-CN, not English.
+    return null;
+  }
+
+  function normalizeLang(code) {
+    if (!code) return null;
+    var raw = String(code).trim();
+    if (isSupportedLang(raw)) return raw;
+    var guess = langFromTag(raw);
+    return guess && isSupportedLang(guess) ? guess : null;
+  }
+
+  function langFromLanguages(list) {
+    if (!list) return null;
+    var arr = typeof list === 'string' ? [list] : list;
+    for (var i = 0; i < arr.length; i++) {
+      var hit = langFromTag(arr[i]);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /**
+   * Pure resolver. Priority: manual choice > explicit option > timezone
+   * (region) > browser language > English.
+   *
+   * Timezone wins over language because the requirement is "pick by region":
+   * a machine in Taipei running an English OS is still Asia/Taipei and should
+   * get Traditional Chinese, even though navigator.language says en.
+   */
+  function resolveLang(input) {
+    var o = input || {};
+    var stored = normalizeLang(o.stored);
+    if (stored) return { locale: stored, source: 'stored' };
+    var explicit = normalizeLang(o.explicit);
+    if (explicit) return { locale: explicit, source: 'explicit' };
+    var byTz = o.timeZone ? (TZ_TO_LOCALE[o.timeZone] || null) : null;
+    if (byTz) return { locale: byTz, source: 'timezone' };
+    var byLang = langFromLanguages(o.languages);
+    if (byLang) return { locale: byLang, source: 'language' };
+    return { locale: DEFAULT_LANG, source: 'default' };
+  }
+
+  function currentTimeZone() {
+    // Missing on very old engines → undefined → falls through to language.
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
+    catch (_) { return null; }
+  }
+
+  function currentLanguages() {
+    var nav = window.navigator || {};
+    if (nav.languages && nav.languages.length) return nav.languages;
+    var one = nav.language || nav.userLanguage;
+    return one ? [one] : [];
+  }
+
+  function readStoredLang() {
+    try { return window.localStorage ? window.localStorage.getItem(LANG_STORAGE_KEY) : null; }
+    catch (_) { return null; }   // private mode / blocked storage
+  }
+
+  function saveLang(code) {
+    try { if (window.localStorage) window.localStorage.setItem(LANG_STORAGE_KEY, code); }
+    catch (_) { /* unstorable is fine — reverts to auto-detect next load */ }
+  }
+
+  function detectLang(explicit) {
+    return resolveLang({
+      stored: readStoredLang(),
+      explicit: explicit,
+      timeZone: currentTimeZone(),
+      languages: currentLanguages()
+    }).locale;
+  }
+
+  // -------------------------------------------------------------------------
+  // STRINGS
+  // -------------------------------------------------------------------------
+  var STRINGS = {
+    'zh-CN': {
+      title: '智能客服',
+      subtitle: '在线',
+      welcome: '您好，请问有什么可以帮您？',
+      placeholder: '输入您的问题…',
+      uploadHint: '支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB',
+      openAria: '打开客服',
+      closeAria: '关闭',
+      uploadTitle: '上传文件',
+      sendTitle: '发送',
+      langTitle: '切换语言',
+      sources: '引用 {n} 条资料',
+      uploading: '正在上传：{name}（{size} KB）…',
+      parsing: '已上传 {name}，正在解析并入库…',
+      ingested: '✅ {name} 已入库：{n} 个片段，现在可以就它提问了',
+      ingestFailed: '⚠ {name} 入库失败：{err}',
+      uploadFailed: '⚠ 上传失败：{err}',
+      unknownError: '未知错误',
+      genericError: '出错了',
+      switched: '已切换为简体中文，接下来我会用简体中文回答。'
+    },
+    'zh-TW': {
+      title: '智能客服',
+      subtitle: '線上',
+      welcome: '您好，請問有什麼可以為您服務？',
+      placeholder: '請輸入您的問題…',
+      uploadHint: '支援 .txt / .md / .docx / .xlsx / .pdf，單一檔案 ≤ 20MB',
+      openAria: '開啟客服',
+      closeAria: '關閉',
+      uploadTitle: '上傳檔案',
+      sendTitle: '傳送',
+      langTitle: '切換語言',
+      sources: '引用 {n} 筆資料',
+      uploading: '正在上傳：{name}（{size} KB）…',
+      parsing: '已上傳 {name}，正在解析並建立索引…',
+      ingested: '✅ {name} 已建立索引：{n} 個片段，現在可以針對它提問了',
+      ingestFailed: '⚠ {name} 建立索引失敗：{err}',
+      uploadFailed: '⚠ 上傳失敗：{err}',
+      unknownError: '未知錯誤',
+      genericError: '發生錯誤',
+      switched: '已切換為繁體中文，接下來我會用繁體中文回答。'
+    },
+    'ja': {
+      title: 'AIカスタマーサポート',
+      subtitle: 'オンライン',
+      welcome: 'こんにちは。ご用件をお伺いします。',
+      placeholder: 'ご質問を入力してください…',
+      uploadHint: '.txt / .md / .docx / .xlsx / .pdf に対応、1ファイル 20MB まで',
+      openAria: 'サポートチャットを開く',
+      closeAria: '閉じる',
+      uploadTitle: 'ファイルを添付',
+      sendTitle: '送信',
+      langTitle: '言語を切り替える',
+      sources: '参照した資料 {n} 件',
+      uploading: 'アップロード中：{name}（{size} KB）…',
+      parsing: '{name} をアップロードしました。解析して登録しています…',
+      ingested: '✅ {name} を登録しました：{n} 件のチャンク。この内容について質問できます',
+      ingestFailed: '⚠ {name} の登録に失敗しました：{err}',
+      uploadFailed: '⚠ アップロードに失敗しました：{err}',
+      unknownError: '不明なエラー',
+      genericError: 'エラーが発生しました',
+      switched: '日本語に切り替えました。これ以降は日本語でお答えします。'
+    },
+    'en': {
+      title: 'Customer Support',
+      subtitle: 'Online',
+      welcome: 'Hello! How can I help you today?',
+      placeholder: 'Type your question…',
+      uploadHint: 'Supports .txt / .md / .docx / .xlsx / .pdf, up to 20MB per file',
+      openAria: 'Open support chat',
+      closeAria: 'Close',
+      uploadTitle: 'Attach a file',
+      sendTitle: 'Send',
+      langTitle: 'Change language',
+      sources: '{n} source(s) cited',
+      uploading: 'Uploading {name} ({size} KB)…',
+      parsing: 'Uploaded {name}. Parsing and indexing…',
+      ingested: '✅ {name} indexed: {n} chunk(s). You can ask about it now.',
+      ingestFailed: '⚠ Could not index {name}: {err}',
+      uploadFailed: '⚠ Upload failed: {err}',
+      unknownError: 'Unknown error',
+      genericError: 'Something went wrong',
+      switched: 'Switched to English. I\'ll reply in English from now on.'
+    }
+  };
+
+  /**
+   * The values the backend ships as *defaults* for 客服名称 / 欢迎语.
+   *
+   * Without this the locale defaults would be dead code: CSConfigIn defaults
+   * `name` and `welcome_message` to non-empty Chinese strings, and
+   * applyServerConfig() overwrites whenever the server value is truthy — so a
+   * Japanese visitor would always get the Chinese welcome even on a fresh
+   * install nobody had configured. A server value that still equals a factory
+   * default means "the admin never customised this", so the locale default
+   * wins. Anything the admin actually typed is respected for every language.
+   */
+  var FACTORY_VALUES = {
+    title: ['智能客服', '智能客服小助手'],
+    welcome: ['您好，请问有什么可以帮您？']
+  };
+
+  /** Keys in cfg that come from the string catalog rather than the caller. */
+  var LOCALIZED_KEYS = ['title', 'subtitle', 'welcome', 'placeholder', 'uploadHint'];
+
+  var lang = DEFAULT_LANG;
+
+  /** Look up a string, interpolating {placeholders}. */
+  function t(key, params) {
+    var table = STRINGS[lang] || STRINGS[DEFAULT_LANG];
+    var s = table[key];
+    if (s === undefined) s = (STRINGS[DEFAULT_LANG][key] !== undefined)
+      ? STRINGS[DEFAULT_LANG][key] : key;
+    if (!params) return s;
+    return s.replace(/\{(\w+)\}/g, function (m, k) {
+      return params[k] !== undefined ? params[k] : m;
+    });
+  }
 
   // -------------------------------------------------------------------------
   // Config + state
@@ -19,22 +275,32 @@
   const DEFAULTS = {
     apiUrl: 'http://localhost:8000',
     configId: '',
-    title: '智能客服',
+    // title / subtitle / welcome / placeholder / uploadHint are filled from
+    // STRINGS[lang] by applyLocaleStrings(). Pass them to init() to override.
+    title: null,
     avatar: '',                 // image URL; falls back to the title's initial
-    subtitle: '在线',
-    welcome: '您好，请问有什么可以帮您？',
-    placeholder: '输入您的问题…',
+    subtitle: null,
+    welcome: null,
+    placeholder: null,
     accent: '#0a66c2',
     position: 'right',          // 'left' | 'right'
     autoOpen: false,
     sessionId: null,
     enableUpload: true,
-    uploadHint: '支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB',
+    uploadHint: null,
+    // 'auto' → detect from region/language (see LOCALE CORE). Or pin one of
+    // 'zh-CN' | 'zh-TW' | 'ja' | 'en'.
+    lang: 'auto',
+    // Show the in-panel language switcher. Turn off if the host page provides
+    // its own and drives the widget via CustomerService.setLang().
+    showLangSwitcher: true,
     // Pull 客服名称 / 头像 / 欢迎语 / 联系方式 from GET /api/config so the
     // admin console is the single source of truth. Anything passed to init()
     // explicitly still wins.
     useServerConfig: true,
     onReady: null,
+    // Fired after the language changes (manual switch or initial detection).
+    onLangChange: null,
   };
 
   let cfg = Object.assign({}, DEFAULTS);
@@ -48,6 +314,23 @@
   let fileBtnEl = null;
   let fileInputEl = null;
   let abortController = null;
+  let langMenuEl = null;
+  /** Keys the caller passed to init() — these always beat locale + server. */
+  let explicitKeys = new Set();
+  /** Values the admin genuinely customised in the console (non-factory). */
+  let serverStrings = {};
+
+  /**
+   * Resolve the localizable cfg fields for the current language.
+   * Precedence: init() option > admin console value > locale default.
+   */
+  function applyLocaleStrings() {
+    LOCALIZED_KEYS.forEach(function (k) {
+      if (explicitKeys.has(k)) return;
+      cfg[k] = serverStrings[k] !== undefined ? serverStrings[k] : t(k);
+    });
+  }
+
 
   // -------------------------------------------------------------------------
   // Styles (injected once)
@@ -73,6 +356,17 @@
   .cs-header .title { font-weight: 600; font-size: 14px; line-height: 1.2; }
   .cs-header .subtitle { font-size: 12px; opacity: .85; }
   .cs-header .close { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 22px; line-height: 1; padding: 4px; }
+  /* Language switcher. The menu drops into the messages area — that stays
+     inside .cs-panel, so the panel's overflow:hidden doesn't clip it. */
+  .cs-lang { position: relative; flex-shrink: 0; }
+  .cs-lang-btn { background: transparent; border: 0; color: #fff; cursor: pointer; padding: 5px; display: flex; align-items: center; border-radius: 6px; }
+  .cs-lang-btn:hover { background: rgba(255,255,255,.18); }
+  .cs-lang-btn svg { width: 18px; height: 18px; display: block; }
+  .cs-lang-menu { position: absolute; top: 100%; right: 0; margin-top: 6px; background: #fff; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.20); padding: 4px; min-width: 136px; display: none; z-index: 5; }
+  .cs-lang-menu.open { display: block; }
+  .cs-lang-menu button { display: block; width: 100%; text-align: left; background: transparent; border: 0; padding: 8px 10px; font-size: 13px; font-family: inherit; color: #222; cursor: pointer; border-radius: 6px; white-space: nowrap; }
+  .cs-lang-menu button:hover { background: #f0f2f5; }
+  .cs-lang-menu button.active { color: var(--cs-accent, #0a66c2); font-weight: 600; }
   .cs-messages { flex: 1; overflow-y: auto; padding: 12px; background: #f7f8fa; }
   .cs-msg { margin: 6px 0; display: flex; }
   .cs-msg.user { justify-content: flex-end; }
@@ -257,7 +551,7 @@
 
     buttonEl = el('button', {
       class: 'cs-btn',
-      'aria-label': '打开客服',
+      'aria-label': t('openAria'),
       onclick: toggle,
       html: chatBubbleIcon(),
     });
@@ -284,24 +578,65 @@
         el('div', { class: 'title', id: 'cs-title' }, cfg.title),
         el('div', { class: 'subtitle', id: 'cs-subtitle' }, cfg.subtitle),
       ]),
-      el('button', { class: 'close', 'aria-label': '关闭', onclick: close }, '×'),
+      cfg.showLangSwitcher ? buildLangSwitcher() : null,
+      el('button', { class: 'close', 'aria-label': t('closeAria'), onclick: close }, '×'),
     ]);
+  }
+
+  /** Globe button + dropdown listing the four languages in their own script. */
+  function buildLangSwitcher() {
+    const wrap = el('div', { class: 'cs-lang' });
+    const btn = el('button', {
+      class: 'cs-lang-btn',
+      title: t('langTitle'),
+      'aria-label': t('langTitle'),
+      'aria-haspopup': 'true',
+      html: globeIcon(),
+      onclick: (e) => { e.stopPropagation(); toggleLangMenu(); },
+    });
+    langMenuEl = el('div', { class: 'cs-lang-menu' });
+    LOCALE_LIST.forEach((loc) => {
+      langMenuEl.appendChild(el('button', {
+        class: loc.code === lang ? 'active' : '',
+        lang: loc.htmlLang,
+        onclick: (e) => { e.stopPropagation(); closeLangMenu(); setLang(loc.code); },
+      }, loc.label));
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(langMenuEl);
+    return wrap;
+  }
+
+  function toggleLangMenu() {
+    if (!langMenuEl) return;
+    if (langMenuEl.classList.contains('open')) closeLangMenu();
+    else {
+      langMenuEl.classList.add('open');
+      // Dismiss on the next outside click. `once` keeps us from stacking
+      // listeners every time the menu opens.
+      document.addEventListener('click', closeLangMenu, { once: true });
+    }
+  }
+
+  function closeLangMenu() {
+    if (langMenuEl) langMenuEl.classList.remove('open');
   }
 
   /** Avatar: an <img> when a URL is configured, otherwise the title's initial. */
   function buildAvatar() {
     const wrap = el('div', { class: 'avatar' });
     const url = (cfg.avatar || '').trim();
+    const initial = (cfg.title || t('title')).slice(0, 1);
     if (url) {
-      const img = el('img', { src: url, alt: cfg.title || '客服' });
+      const img = el('img', { src: url, alt: cfg.title || t('title') });
       // Fall back to the initial if the image 404s or is blocked.
       img.addEventListener('error', () => {
         wrap.innerHTML = '';
-        wrap.textContent = (cfg.title || '客').slice(0, 1);
+        wrap.textContent = initial;
       });
       wrap.appendChild(img);
     } else {
-      wrap.textContent = (cfg.title || '客').slice(0, 1);
+      wrap.textContent = initial;
     }
     return wrap;
   }
@@ -310,7 +645,8 @@
     const wrap = el('div', { class: 'cs-input' });
     if (cfg.enableUpload) {
       fileBtnEl = el('button', {
-        class: 'cs-upload', title: '上传文件', onclick: pickFile,
+        class: 'cs-upload', title: t('uploadTitle'), 'aria-label': t('uploadTitle'),
+        onclick: pickFile,
         // `html` (not children) — a string child becomes a text node, which
         // would print the SVG source instead of rendering it.
         html: paperclipIcon(),
@@ -321,7 +657,10 @@
     }
     inputEl = el('textarea', { rows: '1', placeholder: cfg.placeholder, onkeydown: handleKey });
     wrap.appendChild(inputEl);
-    wrap.appendChild(el('button', { class: 'cs-send', title: '发送', onclick: () => sendCurrent() }, '➤'));
+    wrap.appendChild(el('button', {
+      class: 'cs-send', title: t('sendTitle'), 'aria-label': t('sendTitle'),
+      onclick: () => sendCurrent(),
+    }, '➤'));
     return wrap;
   }
 
@@ -337,7 +676,7 @@
     wrap.appendChild(bubble);
     if (sources && sources.length) {
       const det = el('details');
-      const sum = el('summary', null, `引用 ${sources.length} 条资料`);
+      const sum = el('summary', null, t('sources', { n: sources.length }));
       const ol = el('ol');
       sources.forEach(s => {
         const li = el('li');
@@ -371,6 +710,9 @@
   }
   function paperclipIcon() {
     return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+  }
+  function globeIcon() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
   }
 
   // -------------------------------------------------------------------------
@@ -618,7 +960,10 @@
     appendMessage('user', text);
     const placeholder = appendTyping('assistant');
     try {
-      await ssePost('/api/chat/stream', { session_id: sessionId, message: text }, (ev) => {
+      // `lang` makes the backend answer in the current UI language even though
+      // the knowledge base is Chinese. Sent per request, so switching mid-chat
+      // takes effect on the very next answer.
+      await ssePost('/api/chat/stream', { session_id: sessionId, message: text, lang: lang }, (ev) => {
         if (ev.event === 'meta' && ev.data && ev.data.session_id) {
           sessionId = ev.data.session_id;
         } else if (ev.event === 'token' && ev.data && ev.data.text) {
@@ -633,7 +978,7 @@
           renderAnswer(placeholder.bubble);
         } else if (ev.event === 'error') {
           placeholder.bubble.innerHTML = '';
-          placeholder.bubble.textContent = '⚠ ' + (ev.data?.message || '出错了');
+          placeholder.bubble.textContent = '⚠ ' + (ev.data?.message || t('genericError'));
         } else if (ev.event === 'done') {
           // Safety net: `sources` normally arrives first and triggers the
           // render, but it can be skipped (e.g. retrieval returned nothing).
@@ -660,7 +1005,9 @@
     if (!isOpen) open();
 
     // appendMessage returns { wrap, bubble } — keep the bubble to update in place.
-    const notice = appendMessage('system', `正在上传：${f.name}（${(f.size / 1024).toFixed(1)} KB）…`);
+    const notice = appendMessage('system', t('uploading', {
+      name: f.name, size: (f.size / 1024).toFixed(1),
+    }));
     const say = (text) => { if (notice && notice.bubble) notice.bubble.textContent = text; };
     const base = cfg.apiUrl.replace(/\/+$/, '');
 
@@ -675,7 +1022,7 @@
         throw new Error((up && up.error && up.error.message) || upText || ('HTTP ' + r.status));
       }
 
-      say(`已上传 ${up.filename}，正在解析并入库…`);
+      say(t('parsing', { name: up.filename }));
 
       const pr = await fetch(base + '/api/documents/process', {
         method: 'POST',
@@ -692,12 +1039,15 @@
       // /process answers 200 even when ingestion failed — the outcome is in
       // `status`, so checking pr.ok alone would report a bogus success.
       if (pd && pd.status === 'ready') {
-        say(`✅ ${up.filename} 已入库：${pd.chunk_count} 个片段，现在可以就它提问了`);
+        say(t('ingested', { name: up.filename, n: pd.chunk_count }));
       } else {
-        say(`⚠ ${up.filename} 入库失败：${(pd && pd.error_message) || '未知错误'}`);
+        say(t('ingestFailed', {
+          name: up.filename,
+          err: (pd && pd.error_message) || t('unknownError'),
+        }));
       }
     } catch (err) {
-      say('⚠ 上传失败：' + err.message);
+      say(t('uploadFailed', { err: err.message }));
     }
   }
 
@@ -707,33 +1057,38 @@
   /**
    * Fetch 客服信息 from the backend and merge it in.
    *
-   * Only fields the caller did NOT pass to init() get overwritten, so an
-   * explicit `title` in the embed snippet still beats the admin console.
+   * Records the admin's values in `serverStrings` rather than writing straight
+   * into cfg, so applyLocaleStrings() can re-evaluate the precedence chain
+   * (init option > admin value > locale default) on every language switch.
+   *
+   * A value still equal to a shipped factory default is treated as "never
+   * customised" — see FACTORY_VALUES for why that matters.
    */
-  async function applyServerConfig(explicitKeys) {
+  async function applyServerConfig() {
     try {
       const c = await api('/api/config');
       if (!c) return;
-      const fromServer = {
-        title: c.name,
-        avatar: c.avatar,
-        welcome: c.welcome_message,
-      };
+      const fromServer = { title: c.name, avatar: c.avatar, welcome: c.welcome_message };
       for (const k in fromServer) {
         const v = fromServer[k];
-        if (v && !explicitKeys.has(k)) cfg[k] = v;
+        if (!v || explicitKeys.has(k)) continue;
+        if (k === 'avatar') { cfg.avatar = v; continue; }   // not a translatable string
+        const factory = FACTORY_VALUES[k] || [];
+        if (factory.indexOf(String(v).trim()) === -1) serverStrings[k] = v;
       }
       // Surface contact details in the subtitle when the admin filled them in.
+      // Phone/email are data, not language — no factory check needed.
       if (!explicitKeys.has('subtitle')) {
         const contact = [c.contact_phone, c.contact_email].filter(Boolean).join(' · ');
-        if (contact) cfg.subtitle = contact;
+        if (contact) serverStrings.subtitle = contact;
       }
+      applyLocaleStrings();
     } catch (_) {
       // Offline or CORS-blocked — keep the defaults, don't break the widget.
     }
   }
 
-  /** Re-render the header + welcome line after config arrives. */
+  /** Re-render the header + welcome line after config or language changes. */
   function refreshHeader() {
     if (!panelEl) return;
     const old = panelEl.querySelector('.cs-header');
@@ -745,10 +1100,72 @@
     }
   }
 
+  /**
+   * Re-render every piece of chrome that carries text.
+   *
+   * Existing messages are deliberately left alone: they were written in the
+   * previous language and we cannot retranslate them. Only the *next* answer
+   * changes language, which happens automatically because `lang` travels with
+   * each request.
+   */
+  function refreshChrome() {
+    applyLocaleStrings();
+    refreshHeader();
+    if (inputEl) inputEl.setAttribute('placeholder', cfg.placeholder);
+    if (buttonEl) buttonEl.setAttribute('aria-label', t('openAria'));
+    if (fileBtnEl) {
+      fileBtnEl.setAttribute('title', t('uploadTitle'));
+      fileBtnEl.setAttribute('aria-label', t('uploadTitle'));
+    }
+    if (panelEl) {
+      const send = panelEl.querySelector('.cs-send');
+      if (send) {
+        send.setAttribute('title', t('sendTitle'));
+        send.setAttribute('aria-label', t('sendTitle'));
+      }
+      const hint = panelEl.querySelector('.cs-upload-hint');
+      if (hint) hint.textContent = cfg.uploadHint;
+    }
+  }
+
+  /**
+   * Switch language. Persists the choice, so it survives reloads and outranks
+   * auto-detection from then on.
+   */
+  function setLang(code, opts) {
+    const next = normalizeLang(code);
+    if (!next || next === lang) return lang;
+    lang = next;
+    saveLang(next);
+    refreshChrome();
+    // Tell the visitor in the new language that the switch took, and that
+    // answers will follow suit — otherwise a mid-chat switch looks like nothing
+    // happened until they send another message.
+    if (!(opts && opts.silent) && messagesEl && messagesEl.children.length) {
+      appendMessage('system', t('switched'));
+    }
+    if (typeof cfg.onLangChange === 'function') {
+      try { cfg.onLangChange(next); } catch (_) {}
+    }
+    return next;
+  }
+
+  function getLang() { return lang; }
+
   function init(options) {
-    const explicitKeys = new Set(Object.keys(options || {}));
-    cfg = Object.assign({}, DEFAULTS, options || {});
+    const opts = options || {};
+    // Only keys with a real value count as "explicit" — `{title: null}` should
+    // mean "use the locale default", not "render an empty header".
+    explicitKeys = new Set(Object.keys(opts).filter(function (k) {
+      return opts[k] !== null && opts[k] !== undefined && opts[k] !== '';
+    }));
+    cfg = Object.assign({}, DEFAULTS, opts);
     sessionId = cfg.sessionId || null;
+
+    // 'auto' (the default) means detect; anything else is an explicit request
+    // that still loses to a language the visitor picked by hand earlier.
+    lang = detectLang(cfg.lang === 'auto' ? null : cfg.lang);
+    applyLocaleStrings();
 
     const start = async () => {
       ensureRoot();
@@ -758,12 +1175,14 @@
       if (cfg.autoOpen) open();
 
       if (cfg.useServerConfig) {
-        await applyServerConfig(explicitKeys);
+        await applyServerConfig();
         refreshHeader();
       }
 
       if (typeof cfg.onReady === 'function') {
-        try { cfg.onReady({ open, close, toggle, sendMessage }); } catch (_) {}
+        try {
+          cfg.onReady({ open, close, toggle, sendMessage, setLang, getLang, lang });
+        } catch (_) {}
       }
     };
     if (document.readyState === 'loading') {
@@ -776,11 +1195,18 @@
   function destroy() {
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = panelEl = messagesEl = inputEl = buttonEl = fileBtnEl = fileInputEl = null;
+    langMenuEl = null;
     if (abortController) abortController.abort();
     abortController = null;
     isOpen = false;
   }
 
-  // Expose
-  window.CustomerService = { init, open, close, toggle, sendMessage, destroy };
+  // Expose. setLang/getLang let the host page drive the language (e.g. an
+  // existing site-wide switcher); resolveLang/LOCALE_LIST are exported so the
+  // selftest can compare this inlined detector against shared/locale.js.
+  window.CustomerService = {
+    init, open, close, toggle, sendMessage, destroy,
+    setLang, getLang, detectLang, resolveLang,
+    locales: LOCALE_LIST,
+  };
 })();

@@ -7,7 +7,7 @@
 
 ![status](https://img.shields.io/badge/status-可用-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-36%20backend%20%2B%2017%20widget-brightgreen)
+![tests](https://img.shields.io/badge/tests-103%20backend%20%2B%2031%20widget%20%2B%2024%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **仓库地址**
@@ -32,6 +32,7 @@
 - [智能分词（结构感知切分）](#智能分词结构感知切分)
 - [回答策略：严格 RAG 还是允许自主回答](#回答策略严格-rag-还是允许自主回答)
 - [嵌入到你的网站](#嵌入到你的网站)
+- [多语言（离线也能自动选对语言）](#多语言离线也能自动选对语言)
 - [API 速查](#api-速查)
 - [配置项参考](#配置项参考)
 - [常见问题](#常见问题)
@@ -159,6 +160,7 @@ python run.py --install          # 缺依赖时自动安装
 | **🪟 可嵌入组件** | 单文件 JS（零依赖、免构建），内置 Markdown 渲染 + 链接可点击 |
 | **📲 跨平台** | 网站 / 微信小程序 `web-view` / Electron / Tauri / iOS / Android |
 | **⚙️ 全网页配置** | 模型、向量库、RAG 参数、客服信息全部页面可改，改完即生效无需重启 |
+| **🌐 四语言 · 离线判断** | 简中 / 繁中 / 日语 / 英语；**按时区判断地区，不查 IP，内网离线同样有效**；可手动切换，切完 AI 回答也跟着换语言 |
 
 ---
 
@@ -177,11 +179,12 @@ python run.py --install          # 缺依赖时自动安装
 | 🪟 **聊天预览** | iframe 内嵌真实组件，直接测 RAG 问答 |
 | 🌐 **嵌入指南** | 三种嵌入方式的代码，一键复制 |
 
-页面右上角还有三个常驻工具：
+页面右上角还有四个常驻工具：
 
 | 工具 | 说明 |
 |---|---|
 | 🟢 **后端状态** | 每 15 秒自检一次。离线时鼠标悬停可看完整错误 |
+| 🌐 **语言** | 切换后台界面语言（简中 / 繁中 / 日语 / 英语）。菜单里每一项都用它自己的文字写，看不懂当前语言的人也能找到自己那项 |
 | ⬆︎ **检测更新** | 比对当前版本与 GitHub 最新 Release，有新版时按钮上出现红点 |
 | ☕ **打赏支持** | 微信 / 支付宝 / QQ 赞赏码 |
 
@@ -242,7 +245,7 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter（结构感知）· sse · hash · obfuscation
-│   │   └── tests/                    36 个测试
+│   │   └── tests/                    103 个测试
 │   ├── scripts/
 │   │   ├── init_db.py                建表（一键初始化已覆盖，一般不用手跑）
 │   │   ├── check_env.py              依赖/配置自检
@@ -250,12 +253,18 @@ intelligent-customer-service/
 │   │   └── ingest_retry.py           ← 大知识库自动重试入库
 │   └── samples/                      示例知识文档
 ├── frontend/
+│   ├── shared/
+│   │   └── locale.js                 ← 离线地区判断（时区优先，语言兜底）
 │   ├── admin/
 │   │   ├── index.html                管理后台
-│   │   └── embed.html                独立聊天页（预览 / iframe 用）
+│   │   ├── embed.html                独立聊天页（预览 / iframe 用）
+│   │   ├── i18n.js                   ← 四语言词条（简中为源语言，无需词条）
+│   │   ├── i18n-check.mjs            ← 词条覆盖检查（缺翻译即失败）
+│   │   ├── mark-i18n.py              ← 给 HTML 打 data-i18n 标记（可重跑）
+│   │   └── selftest.mjs              ← 后台语言切换自检（24 项断言）
 │   └── widget/
 │       ├── customer-service.js       嵌入组件（零依赖）
-│       ├── selftest.mjs              ← 组件自检（17 项断言）
+│       ├── selftest.mjs              ← 组件自检（31 项断言）
 │       └── demo/                     嵌入演示
 └── docs/
     ├── API.md · DEPLOYMENT.md · EMBED_GUIDE.md
@@ -435,15 +444,60 @@ ARK 有两个**计费不同**的产品，务必选对：
 | `enableUpload` | `true` | 显示文件上传按钮 |
 | `useServerConfig` | `true` | 是否从 `/api/config` 拉取客服信息 |
 | `sessionId` | `null` | 恢复历史会话 |
+| `lang` | `auto` | `auto` / `zh-CN` / `zh-TW` / `ja` / `en`，见下方「多语言」 |
 | `onReady` | `null` | 初始化完成回调 |
+| `onLangChange` | `null` | 访客切换语言后的回调 |
 
 ```js
 CustomerService.open() / close() / toggle() / sendMessage(text) / destroy()
+CustomerService.setLang('ja') / getLang()
 ```
 
 组件内置 **Markdown 渲染**（加粗/列表/标题/代码块/引用）和**链接自动可点击**。
 
 详见 [docs/EMBED_GUIDE.md](docs/EMBED_GUIDE.md)（含 Electron / Tauri / iOS / Android / CSP）。
+
+---
+
+## 多语言（离线也能自动选对语言）
+
+界面和 AI 回答都支持 **简体中文 / 繁體中文 / 日本語 / English**，管理后台、聊天组件、
+`/embed` 独立聊天页、后端首页四处都能切。
+
+**默认语言怎么定的**：先看浏览器时区，时区说不清再看 `navigator.languages`，
+都没线索就用英语。
+
+| 时区 | 默认语言 |
+|---|---|
+| `Asia/Shanghai`、`Asia/Urumqi`、`Asia/Chongqing` | 简体中文 |
+| `Asia/Taipei`、`Asia/Hong_Kong`、`Asia/Macau` | 繁體中文 |
+| `Asia/Tokyo` | 日本語 |
+| 其他 | English |
+
+**为什么不查 IP**：内网里客户端地址是 `10.x` / `192.168.x`，本身不带地区信息，
+而且离线环境也连不上任何在线 IP 库。时区和语言偏好都由浏览器本地提供，
+**断网、纯内网部署一样能判断对**。
+
+**手动切换**：管理后台右上角的 🌐、聊天窗口标题栏里都能切，选择记在
+`localStorage`（键名 `cs_lang`，后台和组件共用一个键，改一处两边都跟着变）。
+
+**AI 回答的语言**：当前语言会随每次提问发给后端。知识库仍然是中文、检索逻辑一个字没改 ——
+只是在那份调好的中文提示词后面追加一段「用目标语言作答」的指令，而且这段指令本身
+就用目标语言写（日语指令用日语写，模型守得住得多）。`zh-CN` 时追加的是空字符串，
+提示词与做多语言之前**逐字节相同**。
+
+强制指定语言：组件传 `lang: 'ja'`，`/embed` 或后台加 `?lang=ja`，接口传 `{"lang":"ja"}`。
+
+```bash
+# 三处检查都必须绿：后端 103 项、组件 31 项、后台语言切换 24 项，加词条覆盖检查
+cd backend && .venv/bin/pytest src/tests -q
+cd frontend/widget && npm i && node selftest.mjs
+cd frontend/admin && node selftest.mjs && node i18n-check.mjs
+```
+
+改了后台界面上的中文？`node i18n-check.mjs` 会告诉你哪几条缺翻译 ——
+词条的键就是中文原文（`frontend/admin/i18n.js`），所以简体中文不需要词条表，
+缺翻译时退回中文而不是显示一串 key。给 HTML 打标记用 `python3 mark-i18n.py`（可重复跑）。
 
 ---
 
@@ -653,14 +707,21 @@ location /api/chat/stream {
 ## 开发与测试
 
 ```bash
-# 后端：36 个测试
+# 后端：103 个测试
 cd backend
 python -m pytest src/tests/ -q
 
-# 前端组件自检：17 项断言，在真实 DOM 里跑完整 SSE 流程
+# 前端组件自检：31 项断言，在真实 DOM 里跑完整 SSE 流程 + 地区检测
 cd frontend/widget
 npm install       # 装 jsdom
 npm test
+
+# 管理后台语言切换自检：24 项断言（jsdom 借用 widget 装好的那份）
+cd frontend/admin
+node selftest.mjs
+
+# 词条覆盖检查：界面上每条中文都必须有三种译文
+node i18n-check.mjs
 
 # 环境自检
 cd backend && python scripts/check_env.py
@@ -668,6 +729,11 @@ cd backend && python scripts/check_env.py
 
 > 组件自检值得一说：`node -c` 只做语法检查，检不出「模板字符串被内部反引号截断」
 > 这类会让整个 widget 运行时崩溃的错误。`npm test` 会真正执行渲染路径。
+>
+> 后台自检同理：`i18n-check.mjs` 用正则从 HTML 抠词条，只能证明「词条齐全」；
+> 证明不了浏览器里 `innerHTML` 抠出来的键真的对得上（空白、HTML 实体差一点就查不到），
+> 也证明不了连切两次语言还能切回来。`selftest.mjs` 用 jsdom 加载真正的
+> `index.html` 走真正的 `apply()`，这两类 bug 都是它抓出来的。
 
 ---
 

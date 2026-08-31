@@ -49,9 +49,18 @@
   <p>
     <code>/embed</code> 支持这些查询参数：<code>api</code>、<code>title</code>、
     <code>accent</code>、<code>position</code>、<code>autoOpen</code>、
-    <code>upload</code>、<code>bg</code>。
+    <code>upload</code>、<code>bg</code>、<code>lang</code>。
     不传则使用管理后台「客服信息」里的配置。
   </p>
+
+  <div class="note">
+    <b>语言不用传。</b><br>
+    不传 <code>lang</code> 时，组件按访客所在地区自动选择：中国大陆 → 简体中文，
+    港澳台 → 繁体中文，日本 → 日语，其他 → 英语。判断只用浏览器时区和语言偏好，
+    <b>不查 IP</b>，所以内网 / 离线环境同样有效。访客手动切换后的选择会记住。
+    需要强制某种语言时才传 <code>lang=zh-CN|zh-TW|ja|en</code>。
+    切换语言后，AI 的回答也会用同一种语言。
+  </div>
 
   <div class="note">
     注意：iframe 的 <code>src</code> 要指向 <code>/embed</code> 页面，

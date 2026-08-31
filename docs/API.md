@@ -287,9 +287,19 @@ Non-streaming RAG chat.
 {
   "session_id": "optional-id",
   "message": "产品的保修期是多久？",
-  "agent_name": "智能客服小助手"
+  "agent_name": "智能客服小助手",
+  "lang": "ja"
 }
 ```
+
+`lang` (`zh-CN` / `zh-TW` / `ja` / `en`, default `zh-CN`) pins the **answer's**
+language. The knowledge base stays Chinese and retrieval is unchanged — the
+Chinese system prompt is reused verbatim and an output-language directive,
+written in the target language, is appended to it. Unknown or absent values fall
+back to `zh-CN`, whose prompt is byte-identical to the pre-i18n one.
+
+Localised alongside the answer: the canned "not in the knowledge base" refusal,
+the default agent name, the auto-generated session title, and error prefixes.
 
 Response:
 ```json
@@ -320,7 +330,7 @@ recognisable structure).
 Server-Sent Events stream of the same call.
 
 SSE events:
-- `event: meta` — first, carries `{session_id}`
+- `event: meta` — first, carries `{session_id, lang}`
 - `event: token` — incremental text `{text}`
 - `event: sources` — final, the matched chunks array
 - `event: done` — stream end `{ok: true|false}`
@@ -329,7 +339,7 @@ SSE events:
 ```bash
 curl -N -X POST http://localhost:8000/api/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"message":"产品的保修期是多久？"}'
+  -d '{"message":"产品的保修期是多久？","lang":"en"}'
 ```
 
 ---

@@ -37,6 +37,161 @@ from src.models.base import Base
 log = logging.getLogger(__name__)
 
 
+# The landing page below is a Chinese f-string; this block translates it in the
+# browser instead. Kept as a plain (non-f) string so the JS braces don't need
+# doubling, and kept inline rather than in a .js file so the page keeps working
+# even if the static mounts are ever moved.
+#
+# The msgid is the Chinese source text itself — same convention as the admin
+# console (frontend/admin/i18n.js), so zh-CN needs no catalog at all and a
+# missing entry degrades to Chinese rather than to a raw key.
+_LANDING_I18N_SCRIPT = r"""
+<script src="/shared/locale.js"></script>
+<script>
+(function () {
+  var CAT = {
+    'zh-TW': {
+      '🚀 快速开始': '🚀 快速開始',
+      '第一次使用？打开 <a href="/admin/"><strong>管理后台</strong></a>，填入 API Key 即可。':
+        '第一次使用？打開 <a href="/admin/"><strong>管理後台</strong></a>，填入 API Key 即可。',
+      '⚙️ 进入管理后台': '⚙️ 進入管理後台',
+      '🪟 客服组件演示': '🪟 客服元件示範',
+      '📡 API 端点': '📡 API 端點',
+      'SSE 流式问答': 'SSE 串流問答',
+      '测试模型连接': '測試模型連線',
+      '完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）':
+        '完整清單見 <a href="/docs">Swagger 文件</a>（共 23 個端點）',
+      '🌐 嵌入到你的网站': '🌐 嵌入到你的網站',
+      '客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。':
+        '客服名稱、頭像、歡迎語不用寫在這裡 —— 元件會自動讀取 <a href="/admin/">「客服資訊」</a>的設定，改一次對所有站點生效。<br> <code>?v=1</code> 是快取版本號，更新元件後遞增它。',
+      '更多方式（iframe / 小程序 / 桌面端）见 <a href="/widget/demo/embed.html">嵌入演示</a>':
+        '更多方式（iframe / 小程式 / 桌面端）見 <a href="/widget/demo/embed.html">嵌入示範</a>',
+      '🚀 部署到服务器': '🚀 部署到伺服器',
+      '本机跑通后，把它部署到自己的服务器对外提供服务：':
+        '在本機跑通後，把它部署到自己的伺服器對外提供服務：',
+      '<b>最快</b>：Docker Compose 一条命令起全套（应用 + MySQL + Redis + 向量库）':
+        '<b>最快</b>：Docker Compose 一條命令起全套（應用 + MySQL + Redis + 向量庫）',
+      '<b>常规</b>：systemd 托管 + Nginx 反向代理 + HTTPS 证书':
+        '<b>常規</b>：systemd 託管 + Nginx 反向代理 + HTTPS 憑證',
+      '<b>注意</b>：SSE 流式问答需要在 Nginx 关闭缓冲，否则回答不会逐字出现':
+        '<b>注意</b>：SSE 串流問答需要在 Nginx 關閉緩衝，否則回答不會逐字出現',
+      '完整步骤（含 Nginx 配置、HTTPS、防火墙、备份、安全加固）见 <b>项目根目录的 <code>docs/DEPLOYMENT.md</code></b>。':
+        '完整步驟（含 Nginx 設定、HTTPS、防火牆、備份、安全強化）見 <b>專案根目錄的 <code>docs/DEPLOYMENT.md</code></b>。'
+    },
+    'ja': {
+      '🚀 快速开始': '🚀 クイックスタート',
+      '第一次使用？打开 <a href="/admin/"><strong>管理后台</strong></a>，填入 API Key 即可。':
+        '初めてお使いですか？<a href="/admin/"><strong>管理コンソール</strong></a>を開いて API キーを入力するだけです。',
+      '⚙️ 进入管理后台': '⚙️ 管理コンソールを開く',
+      '🪟 客服组件演示': '🪟 チャットウィジェットのデモ',
+      '📡 API 端点': '📡 API エンドポイント',
+      'SSE 流式问答': 'SSE ストリーミング応答',
+      '测试模型连接': 'モデル接続のテスト',
+      '完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）':
+        '全一覧は <a href="/docs">Swagger ドキュメント</a>をご覧ください（全 23 エンドポイント）',
+      '🌐 嵌入到你的网站': '🌐 自分のサイトに埋め込む',
+      '客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。':
+        '名前・アイコン・あいさつ文をここに書く必要はありません。ウィジェットが <a href="/admin/">「担当者情報」</a>の設定を自動で読み込むので、一度変更すればすべてのサイトに反映されます。<br> <code>?v=1</code> はキャッシュ用のバージョン番号です。ウィジェットを更新したら増やしてください。',
+      '更多方式（iframe / 小程序 / 桌面端）见 <a href="/widget/demo/embed.html">嵌入演示</a>':
+        'その他の方法（iframe / ミニプログラム / デスクトップ）は <a href="/widget/demo/embed.html">埋め込みデモ</a>をご覧ください',
+      '🚀 部署到服务器': '🚀 サーバーへデプロイ',
+      '本机跑通后，把它部署到自己的服务器对外提供服务：':
+        'ローカルで動作を確認したら、自分のサーバーにデプロイして公開しましょう。',
+      '<b>最快</b>：Docker Compose 一条命令起全套（应用 + MySQL + Redis + 向量库）':
+        '<b>最速</b>：Docker Compose ならコマンド 1 つで一式（アプリ + MySQL + Redis + ベクトル DB）が起動します',
+      '<b>常规</b>：systemd 托管 + Nginx 反向代理 + HTTPS 证书':
+        '<b>標準</b>：systemd で常駐 + Nginx リバースプロキシ + HTTPS 証明書',
+      '<b>注意</b>：SSE 流式问答需要在 Nginx 关闭缓冲，否则回答不会逐字出现':
+        '<b>注意</b>：SSE ストリーミング応答には Nginx のバッファリング無効化が必要です。有効なままだと回答が 1 文字ずつ表示されません',
+      '完整步骤（含 Nginx 配置、HTTPS、防火墙、备份、安全加固）见 <b>项目根目录的 <code>docs/DEPLOYMENT.md</code></b>。':
+        '詳しい手順（Nginx 設定・HTTPS・ファイアウォール・バックアップ・セキュリティ強化）は <b>プロジェクト直下の <code>docs/DEPLOYMENT.md</code></b> にあります。'
+    },
+    'en': {
+      '🚀 快速开始': '🚀 Quick start',
+      '第一次使用？打开 <a href="/admin/"><strong>管理后台</strong></a>，填入 API Key 即可。':
+        'First time here? Open the <a href="/admin/"><strong>admin console</strong></a> and paste in an API key — that is all it takes.',
+      '⚙️ 进入管理后台': '⚙️ Open admin console',
+      '🪟 客服组件演示': '🪟 Chat widget demo',
+      '📡 API 端点': '📡 API endpoints',
+      'SSE 流式问答': 'SSE streaming answers',
+      '测试模型连接': 'test model connection',
+      '完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）':
+        'See the <a href="/docs">Swagger docs</a> for the full list (23 endpoints)',
+      '🌐 嵌入到你的网站': '🌐 Embed it in your site',
+      '客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。':
+        'You do not need to set the name, avatar or greeting here — the widget reads them from your <a href="/admin/">agent settings</a>, so one change applies to every site.<br> <code>?v=1</code> is a cache-busting version; bump it whenever you update the widget.',
+      '更多方式（iframe / 小程序 / 桌面端）见 <a href="/widget/demo/embed.html">嵌入演示</a>':
+        'For other options (iframe / mini program / desktop) see the <a href="/widget/demo/embed.html">embedding demo</a>',
+      '🚀 部署到服务器': '🚀 Deploy to a server',
+      '本机跑通后，把它部署到自己的服务器对外提供服务：':
+        'Once it works locally, deploy it to your own server to serve real traffic:',
+      '<b>最快</b>：Docker Compose 一条命令起全套（应用 + MySQL + Redis + 向量库）':
+        '<b>Fastest</b>: Docker Compose brings up the whole stack in one command (app + MySQL + Redis + vector DB)',
+      '<b>常规</b>：systemd 托管 + Nginx 反向代理 + HTTPS 证书':
+        '<b>Conventional</b>: systemd service + Nginx reverse proxy + HTTPS certificate',
+      '<b>注意</b>：SSE 流式问答需要在 Nginx 关闭缓冲，否则回答不会逐字出现':
+        '<b>Heads-up</b>: SSE streaming needs buffering turned off in Nginx, otherwise answers will not appear word by word',
+      '完整步骤（含 Nginx 配置、HTTPS、防火墙、备份、安全加固）见 <b>项目根目录的 <code>docs/DEPLOYMENT.md</code></b>。':
+        'Full instructions (Nginx config, HTTPS, firewall, backups, hardening) live in <b><code>docs/DEPLOYMENT.md</code> at the project root</b>.'
+    }
+  };
+  // zh-CN is the source language, so it has no catalog: t() falls through to
+  // the msgid, which already IS the Simplified Chinese text.
+  var L = window.CSLocale;
+  var lang = L ? L.detect().locale : 'zh-CN';
+
+  function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
+  function t(msgid) {
+    var c = CAT[lang];
+    return (c && c[msgid] !== undefined) ? c[msgid] : msgid;
+  }
+  // Snapshot the original text the first time we touch a node, so switching
+  // twice (zh-CN -> en -> ja) still looks up the Chinese msgid.
+  function apply() {
+    if (L) L.applyHtmlLang(lang);
+    var i, el, list = document.querySelectorAll('[data-i18n]');
+    for (i = 0; i < list.length; i++) {
+      el = list[i];
+      if (el._msgid === undefined) el._msgid = norm(el.textContent);
+      el.textContent = t(el._msgid);
+    }
+    list = document.querySelectorAll('[data-i18n-html]');
+    for (i = 0; i < list.length; i++) {
+      el = list[i];
+      if (el._msgidHtml === undefined) el._msgidHtml = norm(el.innerHTML);
+      el.innerHTML = t(el._msgidHtml);
+    }
+  }
+
+  var sel = document.createElement('select');
+  sel.setAttribute('aria-label', 'Language');
+  sel.style.cssText = 'position:fixed;top:16px;right:16px;padding:5px 8px;' +
+    'border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#222;font-size:13px';
+  var locales = (L && L.LOCALES) || [
+    { code: 'zh-CN', label: '简体中文' }, { code: 'zh-TW', label: '繁體中文' },
+    { code: 'ja', label: '日本語' }, { code: 'en', label: 'English' }
+  ];
+  locales.forEach(function (o) {
+    var opt = document.createElement('option');
+    opt.value = o.code;
+    opt.textContent = o.label;
+    opt.lang = o.code;
+    sel.appendChild(opt);
+  });
+  sel.value = lang;
+  sel.addEventListener('change', function () {
+    lang = sel.value;
+    if (L) L.save(lang);
+    apply();
+  });
+  document.body.appendChild(sel);
+
+  apply();
+})();
+</script>
+"""
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -94,7 +249,7 @@ def create_app() -> FastAPI:
         """
         response = await call_next(request)
         path = request.url.path
-        if path.startswith(("/admin", "/widget")) or path == "/embed":
+        if path.startswith(("/admin", "/widget", "/shared")) or path == "/embed":
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -109,6 +264,11 @@ def create_app() -> FastAPI:
     if (frontend_dir / "assets").exists():
         # Icons and donate QR codes used by the admin console.
         app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
+    if (frontend_dir / "shared").exists():
+        # locale.js — the offline language/region detector shared by the admin
+        # console, the embed page and this landing page. The widget inlines its
+        # own copy so it stays a single distributable file.
+        app.mount("/shared", StaticFiles(directory=str(frontend_dir / "shared")), name="shared")
 
     # Routers
     app.include_router(config.router,      prefix="/api/config",    tags=["config"])
@@ -140,7 +300,7 @@ def create_app() -> FastAPI:
         # localhost:8000.
         origin = f"{request.url.scheme}://{request.url.netloc}"
         return f"""
-        <html><head><meta charset="utf-8"><title>{settings.app.name}</title>
+        <html lang="zh-CN"><head><meta charset="utf-8"><title>{settings.app.name}</title>
         <style>body{{font-family:-apple-system,sans-serif;max-width:680px;margin:60px auto;padding:0 24px;color:#222}}
         a{{color:#0a66c2}}code{{background:#f4f4f5;padding:2px 6px;border-radius:4px;font-size:13px}}
         .card{{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:16px 0}}
@@ -156,25 +316,25 @@ def create_app() -> FastAPI:
         <p>API: <a href="/docs">/docs</a> · <a href="/redoc">/redoc</a></p>
 
         <div class="card">
-          <h3>🚀 快速开始</h3>
-          <p>第一次使用？打开 <a href="/admin/"><strong>管理后台</strong></a>，填入 API Key 即可。</p>
-          <a class="btn" href="/admin/">⚙️ 进入管理后台</a>
-          <a class="btn green" href="/widget/demo/">🪟 客服组件演示</a>
+          <h3 data-i18n>🚀 快速开始</h3>
+          <p data-i18n-html>第一次使用？打开 <a href="/admin/"><strong>管理后台</strong></a>，填入 API Key 即可。</p>
+          <a class="btn" href="/admin/" data-i18n>⚙️ 进入管理后台</a>
+          <a class="btn green" href="/widget/demo/" data-i18n>🪟 客服组件演示</a>
         </div>
 
         <div class="card">
-          <h3>📡 API 端点</h3>
+          <h3 data-i18n>📡 API 端点</h3>
           <ul>
           <li><code>GET  /api/config</code> · <code>PUT /api/config</code></li>
           <li><code>POST /api/documents/upload</code> · <code>POST /api/documents/process</code></li>
-          <li><code>POST /api/chat/stream</code> (SSE 流式问答)</li>
-          <li><code>POST /api/models/test</code> (测试模型连接)</li>
+          <li><code>POST /api/chat/stream</code> (<span data-i18n>SSE 流式问答</span>)</li>
+          <li><code>POST /api/models/test</code> (<span data-i18n>测试模型连接</span>)</li>
           </ul>
-          <p>完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）</p>
+          <p data-i18n-html>完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）</p>
         </div>
 
         <div class="card">
-          <h3>🌐 嵌入到你的网站</h3>
+          <h3 data-i18n>🌐 嵌入到你的网站</h3>
           <pre><code>&lt;script src="{origin}/widget/customer-service.js?v=1"&gt;&lt;/script&gt;
 &lt;script&gt;
   CustomerService.init({{
@@ -183,27 +343,21 @@ def create_app() -> FastAPI:
     position: "right",
   }});
 &lt;/script&gt;</code></pre>
-          <p class="muted">
-            客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取
-            <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br>
-            <code>?v=1</code> 是缓存版本号，更新组件后递增它。
-          </p>
-          <p>更多方式（iframe / 小程序 / 桌面端）见 <a href="/widget/demo/embed.html">嵌入演示</a></p>
+          <p class="muted" data-i18n-html>客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。</p>
+          <p data-i18n-html>更多方式（iframe / 小程序 / 桌面端）见 <a href="/widget/demo/embed.html">嵌入演示</a></p>
         </div>
 
         <div class="card">
-          <h3>🚀 部署到服务器</h3>
-          <p>本机跑通后，把它部署到自己的服务器对外提供服务：</p>
+          <h3 data-i18n>🚀 部署到服务器</h3>
+          <p data-i18n>本机跑通后，把它部署到自己的服务器对外提供服务：</p>
           <ol>
-          <li><b>最快</b>：Docker Compose 一条命令起全套（应用 + MySQL + Redis + 向量库）</li>
-          <li><b>常规</b>：systemd 托管 + Nginx 反向代理 + HTTPS 证书</li>
-          <li><b>注意</b>：SSE 流式问答需要在 Nginx 关闭缓冲，否则回答不会逐字出现</li>
+          <li data-i18n-html><b>最快</b>：Docker Compose 一条命令起全套（应用 + MySQL + Redis + 向量库）</li>
+          <li data-i18n-html><b>常规</b>：systemd 托管 + Nginx 反向代理 + HTTPS 证书</li>
+          <li data-i18n-html><b>注意</b>：SSE 流式问答需要在 Nginx 关闭缓冲，否则回答不会逐字出现</li>
           </ol>
-          <p>
-            完整步骤（含 Nginx 配置、HTTPS、防火墙、备份、安全加固）见
-            <b>项目根目录的 <code>docs/DEPLOYMENT.md</code></b>。
-          </p>
+          <p data-i18n-html>完整步骤（含 Nginx 配置、HTTPS、防火墙、备份、安全加固）见 <b>项目根目录的 <code>docs/DEPLOYMENT.md</code></b>。</p>
         </div>
+        {_LANDING_I18N_SCRIPT}
         </body></html>
         """
 

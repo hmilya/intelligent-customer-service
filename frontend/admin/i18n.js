@@ -1,0 +1,1233 @@
+/*!
+ * Admin console i18n — gettext-style catalogs.
+ *
+ * Design: the Chinese source text *is* the msgid (a ``data-i18n`` element's
+ * ``textContent``, or a ``data-i18n-html`` element's ``innerHTML``, or the
+ * value of an attribute named in ``data-i18n-attr``). This means zh-CN needs
+ * no catalog — the text is its own translation — and the HTML markup pass is
+ * purely mechanical, no key names to invent.
+ *
+ * Lookup: ``t(msgid)`` returns the translated string for the current language.
+ * Unmatched msgids fall back to the argument itself (which is already Chinese).
+ *
+ * The admin console loads this file, then the page's ``<script>`` block calls
+ * ``CSAdminI18n.apply(document.documentElement)`` to walk ``data-i18n`` /
+ * ``data-i18n-html`` / ``data-i18n-attr`` and swap in the translations.
+ * After that, runtime JS uses ``CSAdminI18n.t()`` when constructing strings.
+ */
+(function (root) {
+  'use strict';
+
+  // Deliberately the SAME key the chat widget uses. The admin console and the
+  // preview iframe it embeds are same-origin, so one choice drives both — an
+  // admin who switches the console to Japanese sees a Japanese preview too.
+  var STORAGE_KEY = (root.CSLocale && root.CSLocale.STORAGE_KEY) || 'cs_lang';
+  // zh-CN is the source language: its "catalog" is the msgids themselves.
+  var SOURCE_LANG = 'zh-CN';
+
+  /** Supported languages, labelled in their own script. */
+  var LOCALES = (root.CSLocale && root.CSLocale.LOCALES) || [
+    { code: 'zh-CN', label: '简体中文', htmlLang: 'zh-CN' },
+    { code: 'zh-TW', label: '繁體中文', htmlLang: 'zh-TW' },
+    { code: 'ja',    label: '日本語',   htmlLang: 'ja'    },
+    { code: 'en',    label: 'English',  htmlLang: 'en'    },
+  ];
+
+  var SUPPORTED = LOCALES.map(function (l) { return l.code; });
+
+  // -----------------------------------------------------------------------
+  //  Catalogs
+  // -----------------------------------------------------------------------
+  //
+  // Each key is the Chinese source text. Missing keys → fall through to the
+  // key itself (i.e., Chinese).  zh-CN is absent by design.
+  //
+  // NOTE: when the msgid is a ``data-i18n-html`` value that contains
+  // ``<code>`` / ``<strong>``, the translated value must match the *full*
+  // innerHTML including those tags, because the translator may need to
+  // reorder them (e.g. Japanese place the <code> after the verb).
+
+  /** Traditional Chinese catalog. */
+  var ZH_TW = {
+    '前往 <strong>「模型配置」</strong> 选择厂商并填入 API Key': '前往 <strong>「模型設定」</strong> 選擇廠商並填入 API Key',
+    '点击 <strong>「测试连接」</strong> 验证 Key 可用': '點擊 <strong>「測試連線」</strong> 驗證 Key 可用',
+    '前往 <strong>「知识文档」</strong> 上传并入库文档': '前往 <strong>「知識文件」</strong> 上傳並匯入文件',
+    '在 <strong>「聊天预览」</strong> 立即体验': '在 <strong>「聊天預覽」</strong> 立即體驗',
+    'API 根地址，末尾不要带 <code>/chat/completions</code>':
+      'API 根網址，結尾不要帶 <code>/chat/completions</code>',
+    '调用 <code>{base}/embeddings</code>': '呼叫 <code>{base}/embeddings</code>',
+    '本地零安装（Milvus Lite）填 <code>./data/milvus.db</code>； 连服务器填 <code>http://localhost:19530</code>； Zilliz Cloud 填 <code>https://xxx.zillizcloud.com</code>':
+      '本機零安裝（Milvus Lite）填 <code>./data/milvus.db</code>； 連線伺服器填 <code>http://localhost:19530</code>； Zilliz Cloud 填 <code>https://xxx.zillizcloud.com</code>',
+    '开启后，检索到「Q4：数据安全吗？」时会带上 <code>[常见问题]</code>， 让模型知道这段话的出处':
+      '開啟後，檢索到「Q4：資料安全嗎？」時會帶上 <code>[常见问题]</code>， 讓模型知道這段話的出處',
+    '拖拽文件到这里，或 <strong>点击选择</strong>': '拖曳檔案到這裡，或 <strong>點擊選擇</strong>',
+    '把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：':
+      '把 <code>customer-service.js</code> 部署到你的 CDN，然後在目標頁面加入：',
+    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。':
+      '💡 客服名稱、頭像、歡迎語不用寫在這裡 —— 元件會自動讀取「客服資訊」頁的設定， 改一次對所有已嵌入的網站生效。<br> 💡 更新元件後把 <code>?v=1</code> 遞增（<code>?v=2</code>…），否則使用者瀏覽器會繼續使用快取的舊版本。',
+    '<code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20）， 给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。':
+      '<code>400×636</code> 是面板展開後需要的尺寸（面板 360×540 + 按鈕位 76 + 邊距 20）， 給得太小面板會被裁切；<code>background:transparent</code> 避免多餘區域露出白底。',
+    '小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：':
+      '小程式不支援 <code>&lt;script&gt;</code> 注入，請用 <code>&lt;web-view&gt;</code> 元件載入遠端頁面：',
+    '直接下载：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依赖）':
+      '直接下載：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依賴）',
+    '🤖 智能客服': '🤖 智慧客服',
+    '概览': '總覽',
+    '模型配置': '模型設定',
+    '向量库': '向量庫',
+    'RAG 设置': 'RAG 設定',
+    '知识文档': '知識文件',
+    '客服信息': '客服資訊',
+    '聊天预览': '聊天預覽',
+    '嵌入指南': '嵌入指南',
+    '管理后台': '管理後台',
+    '未连接': '未連線',
+    '检测更新': '檢查更新',
+    '打赏支持': '贊助支持',
+    '⚠️ 检测到系统未完成初始化': '⚠️ 偵測到系統未完成初始化',
+    '系统检测到以下问题：': '系統偵測到以下問題：',
+    '点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。': '點擊下方按鈕一鍵完成初始化（建立資料表 + 寫入預設設定 + 建立必要目錄）。',
+    '🚀 一键初始化': '🚀 一鍵初始化',
+    '🔄 重新检测': '🔄 重新偵測',
+    '✅ 初始化完成！': '✅ 初始化完成！',
+    '系统概览': '系統總覽',
+    '在这里查看系统状态并快速跳转到各配置页。': '在這裡查看系統狀態並快速跳至各設定頁。',
+    '快速开始': '快速開始',
+    '当前模型': '目前模型',
+    '配置智能客服使用的 AI 模型。修改后立即生效，无需重启。': '設定智慧客服使用的 AI 模型。修改後立即生效，無須重新啟動。',
+    '💬 对话模型（生成回答）': '💬 對話模型（產生回答）',
+    '厂商 (Provider)': '廠商 (Provider)',
+    '选择一个 LLM 厂商': '選擇一個 LLM 廠商',
+    '协议': '協定',
+    '切换协议会自动更新 Base URL': '切換協定會自動更新 Base URL',
+    '留空表示不修改已保存的密钥': '留空表示不修改已儲存的金鑰',
+    '*必填': '*必填',
+    '模型名称': '模型名稱',
+    '上方下拉选择，或在此手动输入模型名': '由上方下拉選擇，或在此手動輸入模型名稱',
+    '越低越稳定（推荐 ≤ 0.3 减少幻觉）': '越低越穩定（建議 ≤ 0.3 減少幻覺）',
+    '↩︎ 用厂商默认值填充': '↩︎ 以廠商預設值填入',
+    '🔌 测试连接': '🔌 測試連線',
+    '💾 保存对话模型': '💾 儲存對話模型',
+    '🧬 向量模型（文档 Embedding）': '🧬 向量模型（文件 Embedding）',
+    '用于把文档和问题转成向量。多数厂商的 embedding 接口与对话接口同一个 Key 和 Base URL。':
+      '用於把文件和問題轉成向量。多數廠商的 embedding 介面與對話介面使用同一組 Key 和 Base URL。',
+    'Embedding 模型': 'Embedding 模型',
+    '向量维度': '向量維度',
+    '必须与模型实际输出一致（点「测试」可自动探测）': '必須與模型實際輸出一致（點「測試」可自動偵測）',
+    '⬆︎ 复用对话模型的 Key / URL': '⬆︎ 沿用對話模型的 Key / URL',
+    '🔌 测试并探测维度': '🔌 測試並偵測維度',
+    '💾 保存向量模型': '💾 儲存向量模型',
+    '向量库配置': '向量庫設定',
+    '修改向量库需要重启后端服务（SQLite + Chroma 持久化已开箱即用）。': '修改向量庫需要重新啟動後端伺服器（SQLite + Chroma 持久化已可直接使用）。',
+    '基础设置': '基本設定',
+    '向量库类型': '向量庫類型',
+    'Chroma (本地文件，推荐)': 'Chroma (本機檔案，建議)',
+    'Qdrant (生产级，需服务)': 'Qdrant (生產級，需服務)',
+    'Milvus (企业级，本地 Lite / 远端集群)': 'Milvus (企業級，本機 Lite / 遠端叢集)',
+    '集合名': '集合名稱',
+    'Token / API Key（Zilliz Cloud 才需要）': 'Token / API Key（僅 Zilliz Cloud 需要）',
+    'Database 名（可选）': 'Database 名稱（選填）',
+    '必须与 Embedding 模型输出一致': '必須與 Embedding 模型輸出一致',
+    '（Milvus 建集合时固定，改了要新建集合）': '（Milvus 建立集合時即固定，修改後需新建集合）',
+    '持久化目录 (Chroma)': '持久化目錄 (Chroma)',
+    '💾 保存': '💾 儲存',
+    '提示：切换向量库后需要重新上传并入库文档。': '提示：切換向量庫後需要重新上傳並匯入文件。',
+    '检索增强生成的参数调优。': '檢索增強生成的參數調校。',
+    '检索参数': '檢索參數',
+    '每次检索返回的相关片段数': '每次檢索回傳的相關片段數',
+    '相似度阈值 (0~1)': '相似度門檻 (0~1)',
+    '低于此值视为不相关，会触发「无法回答」': '低於此值視為不相關，會觸發「無法回答」',
+    '回答策略': '回答策略',
+    '知识库没有相关内容时，允许 AI 用自己的知识回答': '知識庫沒有相關內容時，允許 AI 用自己的知識回答',
+    '💾 保存回答策略': '💾 儲存回答策略',
+    '文本切分': '文字切分',
+    '切分策略': '切分策略',
+    '结构感知（推荐）— 按章节 / 标题 / Q&A 切，不切断语义': '結構感知（建議）— 依章節 / 標題 / Q&A 切分，不切斷語意',
+    '固定窗口 — 按字数硬切，不看结构': '固定視窗 — 依字數強制切分，不看結構',
+    'Chunk Size (字符)': 'Chunk Size (字元)',
+    '结构感知模式下这是上限，实际按章节长度决定': '結構感知模式下這是上限，實際依章節長度決定',
+    '建议 80~200；仅在需要硬切长段落时生效': '建議 80~200；僅在需要強制切分長段落時生效',
+    '给每个片段加上所属标题前缀': '為每個片段加上所屬標題前綴',
+    '🔍 预览切分效果': '🔍 預覽切分效果',
+    '💾 保存 RAG 设置': '💾 儲存 RAG 設定',
+    '切分预览': '切分預覽',
+    '选择要预览的内容': '選擇要預覽的內容',
+    '（粘贴文本）': '（貼上文字）',
+    '重新预览': '重新預覽',
+    '上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。':
+      '上傳 txt / docx / xlsx / pdf 文件，自動解析 → 切分 → 向量化 → 匯入。',
+    '上传新文档': '上傳新文件',
+    '支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB':
+      '支援 .txt / .md / .docx / .xlsx / .pdf，單一檔案 ≤ 20MB',
+    '已上传文档': '已上傳文件',
+    '加载中…': '載入中…',
+    '设置客服的名称、欢迎语、联系方式等。': '設定客服的名稱、歡迎語、聯絡方式等。',
+    '客服名称': '客服名稱',
+    '头像 URL (可选)': '頭像 URL (選填)',
+    '联系电话': '聯絡電話',
+    '联系邮箱': '聯絡信箱',
+    '欢迎语': '歡迎語',
+    '在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。':
+      '在這裡直接測試 RAG 問答效果。預覽使用 iframe 隔離，與實際嵌入網站的效果一致。',
+    '🔄 重新加载': '🔄 重新載入',
+    '↗︎ 在新标签页打开': '↗︎ 在新分頁開啟',
+    '💡 提示：知识库里没有相关内容时，客服会回答「抱歉，知识库中没有相关信息，我无法回答。」—— 这是 RAG 的预期行为。先到「知识文档」上传并入库文档，再来提问。':
+      '💡 提示：知識庫裡沒有相關內容時，客服會回答「抱歉，知識庫中沒有相關資訊，我無法回答。」—— 這是 RAG 的預期行為。請先到「知識文件」上傳並匯入文件，再來提問。',
+    '把你的智能客服嵌入到任何网站、小程序或桌面应用中。': '把你的智慧客服嵌入到任何網站、小程式或桌面應用程式中。',
+    '方式 1：<script> 标签嵌入（最简单）': '方式 1：<script> 標籤嵌入（最簡單）',
+    '📋 复制代码': '📋 複製程式碼',
+    '方式 2：iframe 嵌入（完全隔离）': '方式 2：iframe 嵌入（完全隔離）',
+    '方式 3：微信 / 支付宝小程序': '方式 3：微信 / 支付寶小程式',
+    'Widget 配置文件': 'Widget 設定檔',
+    '☕ 打赏支持': '☕ 贊助支持',
+    '这个项目是免费开源的。如果它帮你省下了时间，可以请作者喝杯咖啡 —— 完全自愿。': '這個專案是免費開源的。如果它幫你省下了時間，可以請作者喝杯咖啡 —— 完全自願。',
+    '微信': '微信',
+    '支付宝': '支付寶',
+    '用微信扫一扫': '用微信掃一掃',
+    '⬆︎ 检测更新': '⬆︎ 檢查更新',
+    '检查是否有新版本': '檢查是否有新版本',
+    '打赏支持作者': '贊助支持作者',
+    '在 GitHub 上查看项目': '在 GitHub 上查看專案',
+    '从厂商接口重新获取模型列表': '從廠商介面重新取得模型清單',
+    '留空即可': '留空即可',
+    '在这里粘贴一段文本试试切分效果…': '在這裡貼上一段文字試試切分效果…',
+    '智能客服小助手': '智慧客服小助手',
+    '您好，请问有什么可以帮您？': '您好，請問有什麼可以為您服務？',
+    '客服组件预览': '客服元件預覽',
+    '关闭': '關閉',
+    '微信赞赏码': '微信贊賞碼',
+    '智能客服系统 · 管理后台': '智慧客服系統 · 管理後台',
+    '切换语言 / Language': '切換語言 / Language',
+    // — runtime strings (toasts, status text, JS-built tables) —
+    '检查中…': '檢查中…',
+    '后端在线': '後端線上',
+    '后端离线': '後端離線',
+    '后端离线：': '後端離線：',
+    '\n请确认服务已启动，且 API 地址正确。': '\n請確認服務已啟動，且 API 網址正確。',
+    '💡 还差最后一步：填入 API Key': '💡 還差最後一步：填入 API Key',
+    '<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>':
+      '<li>未設定 <strong>LLM API Key</strong>（用於聊天生成）</li>',
+    '<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>':
+      '<li>未設定 <strong>Embedding API Key</strong>（用於文件向量化）</li>',
+    '前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。': '前往左側 <strong>「模型設定」</strong> 填入 Key 並儲存。',
+    '⚙️ 去配置 API Key': '⚙️ 前往設定 API Key',
+    '<span class="spinner"></span>正在初始化…': '<span class="spinner"></span>正在初始化…',
+    '🎉 初始化完成！': '🎉 初始化完成！',
+    '<strong>下一步：</strong>前往「模型配置」填入 API Key 即可使用。':
+      '<strong>下一步：</strong>前往「模型設定」填入 API Key 即可使用。',
+    '初始化失败：': '初始化失敗：',
+    'OpenAI 兼容 (/chat/completions)': 'OpenAI 相容 (/chat/completions)',
+    'Anthropic 兼容 (/messages)': 'Anthropic 相容 (/messages)',
+    '厂商': '廠商',
+    '自定义 / 自建': '自訂 / 自建',
+    '该厂商支持 {0} 种协议，切换会自动更新 Base URL': '此廠商支援 {0} 種協定，切換時會自動更新 Base URL',
+    '该厂商仅支持这一种协议': '此廠商僅支援這一種協定',
+    '该厂商默认 embedding 模型：{0}': '此廠商的預設 embedding 模型：{0}',
+    '该厂商未登记 embedding 模型，可填其他厂商的（Key / URL 要一致）': '此廠商未登錄 embedding 模型，可填其他廠商的（Key / URL 要一致）',
+    '<span style="color:#b45309;">⚠ 此厂商的预填地址/模型未经核实，请对照厂商文档确认后再保存。</span>':
+      '<span style="color:#b45309;">⚠ 此廠商的預填網址/模型未經核實，請對照廠商文件確認後再儲存。</span>',
+    '自定义厂商：填服务商给你的模型名，或点 🔄 尝试自动获取': '自訂廠商：填入服務商提供的模型名稱，或點 🔄 嘗試自動取得',
+    '默认模型：{0}（可从上方下拉换）': '預設模型：{0}（可從上方下拉選單更換）',
+    '上方下拉选择，或手动输入': '從上方下拉選單選擇，或手動輸入',
+    '<option value="">（获取中…）</option>': '<option value="">（取得中…）</option>',
+    '<option value="">（无法获取，请手动输入）</option>': '<option value="">（無法取得，請手動輸入）</option>',
+    '— 厂商接口返回 {0} 个模型 —': '— 廠商介面回傳 {0} 個模型 —',
+    '— 内置推荐 {0} 个 —': '— 內建推薦 {0} 個 —',
+    '<option value="">（获取失败，请手动输入）</option>': '<option value="">（取得失敗，請手動輸入）</option>',
+    '❌ 获取模型列表失败：': '❌ 取得模型清單失敗：',
+    '自定义厂商没有默认值，请手动填写 Base URL 和模型名。': '自訂廠商沒有預設值，請手動填寫 Base URL 和模型名稱。',
+    '✅ 已填入 {0} · {1} 的默认值（记得点保存）': '✅ 已填入 {0} · {1} 的預設值（記得按儲存）',
+    '已保存 {0}（留空则不修改）': '已儲存 {0}（留空則不修改）',
+    '已保存（留空则不修改）': '已儲存（留空則不修改）',
+    '本地文件持久化，开箱即用，无需额外服务。': '本機檔案持久化，開箱即用，無須額外服務。',
+    '需要先启动 Qdrant 服务：docker compose up -d qdrant':
+      '需要先啟動 Qdrant 服務：docker compose up -d qdrant',
+    'URI 填 .db 路径 → Milvus Lite（零安装）；填 http://host:19530 → 连服务器。':
+      'URI 填 .db 路徑 → Milvus Lite（零安裝）；填 http://host:19530 → 連線伺服器。',
+    '❌ Base URL 不能为空': '❌ Base URL 不能為空',
+    '（自定义厂商必须手填）': '（自訂廠商必須手動填寫）',
+    '❌ 模型名称不能为空': '❌ 模型名稱不能為空',
+    '✅ 对话模型已保存，立即生效': '✅ 對話模型已儲存，立即生效',
+    '❌ 保存失败：': '❌ 儲存失敗：',
+    '⏳ 正在测试连接…': '⏳ 正在測試連線…',
+    '✅ 已复用对话模型的 Base URL 和你刚输入的 Key': '✅ 已沿用對話模型的 Base URL 和你剛輸入的 Key',
+    'ℹ️ 已复用 Base URL。Key 请手动输入（已保存的密钥读不出来）': 'ℹ️ 已沿用 Base URL。Key 請手動輸入（已儲存的密鑰無法讀取）',
+    '❌ 向量模型 Base URL 不能为空': '❌ 向量模型 Base URL 不能為空',
+    '❌ 向量模型名称不能为空': '❌ 向量模型名稱不能為空',
+    '✅ 向量模型已保存': '✅ 向量模型已儲存',
+    '⏳ 正在测试并探测维度…': '⏳ 正在測試並偵測維度…',
+    '✅ {0} — 已自动把维度改为 {1}': '✅ {0} — 已自動將維度改為 {1}',
+    '✅ 已保存。注意：切换向量库需要重启后端 + 重新入库文档。': '✅ 已儲存。注意：切換向量資料庫需要重新啟動後端 + 重新匯入文件。',
+    '<span style="color:#b45309;">已开启：</span>检索不到内容时，AI 会用自己的知识回答，':
+      '<span style="color:#b45309;">已開啟：</span>檢索不到內容時，AI 會用自己的知識回答，',
+    '不会再说「知识库中没有相关信息」。<br>': '不會再說「知識庫中沒有相關資訊」。<br>',
+    '⚠ 这类回答<strong>不保证准确</strong>（可能过时或编造），且用户无法区分哪句来自你的资料。':
+      '⚠ 這類回答<strong>不保證準確</strong>（可能過時或編造），且使用者無法區分哪句來自你的資料。',
+    '涉及价格、政策、承诺等场景建议关闭。': '涉及價格、政策、承諾等情境建議關閉。',
+    '<span style="color:#065f46;">已关闭（默认）：</span>只依据知识库回答，检索不到就明确说「没有相关信息」。':
+      '<span style="color:#065f46;">已關閉（預設）：</span>只依據知識庫回答，檢索不到就明確說「沒有相關資訊」。',
+    '每句话都能追溯到你上传的文档。': '每句話都能追溯到你上傳的文件。',
+    '✅ 已开启自主回答，立即生效': '✅ 已開啟自主回答，立即生效',
+    '✅ 已关闭自主回答，仅依据知识库回答': '✅ 已關閉自主回答，僅依據知識庫回答',
+    '❌ Chunk Overlap ({0}) 必须小于 Chunk Size ({1})':
+      '❌ Chunk Overlap ({0}) 必須小於 Chunk Size ({1})',
+    '✅ RAG 设置已保存。注意：已入库的文档需要重新入库才会按新设置切分。': '✅ RAG 設定已儲存。注意：已匯入的文件需要重新匯入才會依新設定切分。',
+    '识别【章节】、Markdown 标题、第X章、Q&A、Excel 工作表，沿语义边界切分。多数文档用这个。':
+      '辨識【章節】、Markdown 標題、第X章、Q&A、Excel 工作表，沿語意邊界切分。多數文件用這個。',
+    '不看结构，每 N 字硬切一刀。只在文档完全没有标题结构时才需要。': '不看結構，每 N 字硬切一刀。只在文件完全沒有標題結構時才需要。',
+    '<option value="">（粘贴文本）</option>': '<option value="">（貼上文字）</option>',
+    '<span style="color:#9ca3af;">请选择一个文档，或在下方粘贴文本。</span>':
+      '<span style="color:#9ca3af;">請選擇一個文件，或在下方貼上文字。</span>',
+    '<span class="spinner-sm"></span>正在切分…': '<span class="spinner-sm"></span>正在切分…',
+    '结构感知': '結構感知',
+    '固定窗口': '固定視窗',
+    '<strong>{0}</strong> · {1} 字 → ': '<strong>{0}</strong> · {1} 字 → ',
+    '<strong style="color:#3b82f6;">{0} 个片段</strong> · ':
+      '<strong style="color:#3b82f6;">{0} 個片段</strong> · ',
+    '策略 {0} · 片段长度 最小 {1} / 平均 {2} / 最大 {3} 字': '策略 {0} · 片段長度 最小 {1} / 平均 {2} / 最大 {3} 字',
+    ' <span style="color:#b45309;">（仅显示前 60 个）</span>':
+      ' <span style="color:#b45309;">（僅顯示前 60 個）</span>',
+    '· <span style="color:#9ca3af;">(无标题)</span>':
+      '· <span style="color:#9ca3af;">(無標題)</span>',
+    '· {0} 字': '· {0} 字',
+    '✅ 客服信息已保存': '✅ 客服資訊已儲存',
+    '⏳ 正在上传 {0}（{1} KB）…': '⏳ 正在上傳 {0}（{1} KB）…',
+    '✅ 上传成功：{0} ({1} 字节)': '✅ 上傳成功：{0} ({1} 位元組)',
+    '⏳ 正在解析 + embedding + 入库…': '⏳ 正在解析 + embedding + 匯入知識庫…',
+    '✅ 入库成功：{0} 个片段': '✅ 匯入成功：{0} 個片段',
+    '⚠️ 入库失败：{0}': '⚠️ 匯入失敗：{0}',
+    '未知错误': '未知錯誤',
+    '<div class="empty">加载中…</div>': '<div class="empty">載入中…</div>',
+    '<div class="empty">还没有文档，拖一个文件到上面开始吧。</div>':
+      '<div class="empty">還沒有文件，拖一個檔案到上面開始吧。</div>',
+    '0 个文档': '0 個文件',
+    '<table><thead><tr><th>文件名</th><th>大小</th><th>分片数</th><th>状态</th><th>操作</th></tr></thead><tbody>':
+      '<table><thead><tr><th>檔案名稱</th><th>大小</th><th>分片數</th><th>狀態</th><th>操作</th></tr></thead><tbody>',
+    '已上传': '已上傳',
+    '处理中': '處理中',
+    '就绪': '就緒',
+    '失败': '失敗',
+    '入库': '匯入',
+    '删除': '刪除',
+    '{0} 个文档（{1} 个已入库）': '{0} 個文件（{1} 個已匯入）',
+    '<div class="empty">加载失败：{0}</div>': '<div class="empty">載入失敗：{0}</div>',
+    '入库失败：': '匯入失敗：',
+    '确认删除该文档及其向量？': '確認刪除此文件及其向量？',
+    '删除失败：': '刪除失敗：',
+    '正在加载…': '正在載入…',
+    '已加载 · 可以开始提问': '已載入 · 可以開始提問',
+    '加载失败': '載入失敗',
+    '已复制到剪贴板': '已複製到剪貼簿',
+    '复制以下代码：': '複製以下程式碼：',
+    '用支付宝扫一扫': '用支付寶掃一掃',
+    '用 QQ 扫一扫': '用 QQ 掃一掃',
+    '赞赏码': '贊賞碼',
+    '检查失败：': '檢查失敗：',
+    '还没有配置 GitHub 仓库，无法比对版本。': '還沒有設定 GitHub 儲存庫，無法比對版本。',
+    '当前版本': '目前版本',
+    '在 <code>backend/.env</code> 里加上仓库地址后重启即可：': '在 <code>backend/.env</code> 裡加上儲存庫網址後重新啟動即可：',
+    '最新版本': '最新版本',
+    '更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：':
+      '更新前請先備份資料（<code>backend/data/</code> 存著設定和 API Key）。 在伺服器上執行：',
+    '项目目录': '專案目錄',
+    '📋 复制命令': '📋 複製指令',
+    '查看发布说明 ↗': '查看發布說明 ↗',
+    '✓ 已复制': '✓ 已複製',
+    '复制以下命令：': '複製以下指令：',
+  };
+
+  /** Japanese catalog. */
+  var JA = {
+    '前往 <strong>「模型配置」</strong> 选择厂商并填入 API Key':
+      '<strong>「モデル設定」</strong> でプロバイダーを選択し、API Key を入力',
+    '点击 <strong>「测试连接」</strong> 验证 Key 可用': '<strong>「接続テスト」</strong> をクリックして Key が使えるか確認',
+    '前往 <strong>「知识文档」</strong> 上传并入库文档': '<strong>「ナレッジ文書」</strong> で文書をアップロードしてナレッジベースに取り込み',
+    '在 <strong>「聊天预览」</strong> 立即体验': '<strong>「チャットプレビュー」</strong> ですぐに体験',
+    'API 根地址，末尾不要带 <code>/chat/completions</code>':
+      'API のルート URL。末尾に <code>/chat/completions</code> を付けないでください',
+    '调用 <code>{base}/embeddings</code>': '<code>{base}/embeddings</code> を呼び出します',
+    '本地零安装（Milvus Lite）填 <code>./data/milvus.db</code>； 连服务器填 <code>http://localhost:19530</code>； Zilliz Cloud 填 <code>https://xxx.zillizcloud.com</code>':
+      'ローカルでインストール不要（Milvus Lite）の場合は <code>./data/milvus.db</code>、 サーバーに接続する場合は <code>http://localhost:19530</code>、 Zilliz Cloud の場合は <code>https://xxx.zillizcloud.com</code> を入力',
+    '开启后，检索到「Q4：数据安全吗？」时会带上 <code>[常见问题]</code>， 让模型知道这段话的出处':
+      '有効にすると、「Q4：データは安全ですか？」を検索したときに <code>[常见问题]</code> を付加し、 その文の出典をモデルに伝えます',
+    '拖拽文件到这里，或 <strong>点击选择</strong>': 'ファイルをここにドラッグ、または <strong>クリックして選択</strong>',
+    '把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：':
+      '<code>customer-service.js</code> を CDN にデプロイし、対象ページに以下を追加してください：',
+    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。':
+      '💡 サポート名、アバター、ウェルカムメッセージはここに書く必要はありません —— コンポーネントが「サポート情報」ページの設定を自動で読み込むため、 一度変更すればすべての埋め込み済みサイトに反映されます。<br> 💡 コンポーネントを更新したら <code>?v=1</code> の数字を増やしてください（<code>?v=2</code>…）。そうしないとユーザーのブラウザがキャッシュされた古いバージョンを使い続けます。',
+    '<code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20）， 给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。':
+      '<code>400×636</code> はパネルを展開したときに必要なサイズです（パネル 360×540 + ボタン領域 76 + 余白 20）。 小さすぎるとパネルが切れてしまいます。<code>background:transparent</code> で余分な領域に白い背景が見えるのを防ぎます。',
+    '小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：':
+      'ミニプログラムは <code>&lt;script&gt;</code> の挿入に対応していないため、<code>&lt;web-view&gt;</code> コンポーネントでリモートページを読み込みます：',
+    '直接下载：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依赖）':
+      '直接ダウンロード：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 依存なし）',
+    '🤖 智能客服': '🤖 インテリジェントカスタマーサポート',
+    '概览': '概要',
+    '模型配置': 'モデル設定',
+    '向量库': 'ベクトルDB',
+    'RAG 设置': 'RAG 設定',
+    '知识文档': 'ナレッジ文書',
+    '客服信息': 'サポート情報',
+    '聊天预览': 'チャットプレビュー',
+    '嵌入指南': '埋め込みガイド',
+    '管理后台': '管理コンソール',
+    '未连接': '未接続',
+    '检测更新': '更新を確認',
+    '打赏支持': '支援する',
+    '⚠️ 检测到系统未完成初始化': '⚠️ システムの初期化が完了していません',
+    '系统检测到以下问题：': '以下の問題が検出されました：',
+    '点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。':
+      '下のボタンをクリックすると初期化が一括で完了します（テーブル作成 + デフォルト設定の書き込み + 必要なディレクトリの作成）。',
+    '🚀 一键初始化': '🚀 ワンクリック初期化',
+    '🔄 重新检测': '🔄 再検出',
+    '✅ 初始化完成！': '✅ 初期化が完了しました！',
+    '系统概览': 'システム概要',
+    '在这里查看系统状态并快速跳转到各配置页。': 'ここでシステムの状態を確認し、各設定ページへすばやく移動できます。',
+    '快速开始': 'クイックスタート',
+    '当前模型': '現在のモデル',
+    '配置智能客服使用的 AI 模型。修改后立即生效，无需重启。': 'インテリジェントカスタマーサポートで使用する AI モデルを設定します。変更は即時反映され、再起動は不要です。',
+    '💬 对话模型（生成回答）': '💬 対話モデル（回答生成）',
+    '厂商 (Provider)': 'プロバイダー (Provider)',
+    '选择一个 LLM 厂商': 'LLM プロバイダーを選択',
+    '协议': 'プロトコル',
+    '切换协议会自动更新 Base URL': 'プロトコルを切り替えると Base URL が自動更新されます',
+    '留空表示不修改已保存的密钥': '空欄のままにすると保存済みのキーを変更しません',
+    '*必填': '*必須',
+    '模型名称': 'モデル名',
+    '上方下拉选择，或在此手动输入模型名': '上のドロップダウンから選択するか、ここにモデル名を手動入力',
+    '越低越稳定（推荐 ≤ 0.3 减少幻觉）': '低いほど安定します（ハルシネーションを減らすには ≤ 0.3 を推奨）',
+    '↩︎ 用厂商默认值填充': '↩︎ プロバイダーのデフォルト値を入力',
+    '🔌 测试连接': '🔌 接続テスト',
+    '💾 保存对话模型': '💾 対話モデルを保存',
+    '🧬 向量模型（文档 Embedding）': '🧬 ベクトルモデル（文書 Embedding）',
+    '用于把文档和问题转成向量。多数厂商的 embedding 接口与对话接口同一个 Key 和 Base URL。':
+      '文書と質問をベクトルに変換するために使用します。多くのプロバイダーでは embedding API と対話 API で同じ Key と Base URL を使用します。',
+    'Embedding 模型': 'Embedding モデル',
+    '向量维度': 'ベクトル次元数',
+    '必须与模型实际输出一致（点「测试」可自动探测）': 'モデルの実際の出力と一致させる必要があります（「テスト」をクリックすると自動検出できます）',
+    '⬆︎ 复用对话模型的 Key / URL': '⬆︎ 対話モデルの Key / URL を再利用',
+    '🔌 测试并探测维度': '🔌 テストして次元数を検出',
+    '💾 保存向量模型': '💾 ベクトルモデルを保存',
+    '向量库配置': 'ベクトルDB設定',
+    '修改向量库需要重启后端服务（SQLite + Chroma 持久化已开箱即用）。':
+      'ベクトルDBを変更するとバックエンドサーバーの再起動が必要です（SQLite + Chroma の永続化はそのまま利用できます）。',
+    '基础设置': '基本設定',
+    '向量库类型': 'ベクトルDBの種類',
+    'Chroma (本地文件，推荐)': 'Chroma (ローカルファイル、推奨)',
+    'Qdrant (生产级，需服务)': 'Qdrant (本番向け、サーバーが必要)',
+    'Milvus (企业级，本地 Lite / 远端集群)': 'Milvus (エンタープライズ向け、ローカル Lite / リモートクラスター)',
+    '集合名': 'コレクション名',
+    'Token / API Key（Zilliz Cloud 才需要）': 'Token / API Key（Zilliz Cloud のみ必要）',
+    'Database 名（可选）': 'Database 名（任意）',
+    '必须与 Embedding 模型输出一致': 'Embedding モデルの出力と一致させる必要があります',
+    '（Milvus 建集合时固定，改了要新建集合）': '（Milvus はコレクション作成時に固定されるため、変更する場合はコレクションを新規作成してください）',
+    '持久化目录 (Chroma)': '永続化ディレクトリ (Chroma)',
+    '💾 保存': '💾 保存',
+    '提示：切换向量库后需要重新上传并入库文档。': 'ヒント：ベクトルDBを切り替えた後は、文書を再アップロードして取り込み直す必要があります。',
+    '检索增强生成的参数调优。': '検索拡張生成のパラメータ調整。',
+    '检索参数': '検索パラメータ',
+    '每次检索返回的相关片段数': '検索ごとに返す関連チャンク数',
+    '相似度阈值 (0~1)': '類似度のしきい値 (0~1)',
+    '低于此值视为不相关，会触发「无法回答」': 'この値を下回ると無関連と判断され、「回答できません」が返されます',
+    '回答策略': '回答ポリシー',
+    '知识库没有相关内容时，允许 AI 用自己的知识回答': 'ナレッジベースに関連内容がない場合、AI 自身の知識で回答することを許可する',
+    '💾 保存回答策略': '💾 回答ポリシーを保存',
+    '文本切分': 'テキスト分割',
+    '切分策略': '分割方式',
+    '结构感知（推荐）— 按章节 / 标题 / Q&A 切，不切断语义': '構造認識（推奨）— 章 / 見出し / Q&A 単位で分割し、意味を分断しない',
+    '固定窗口 — 按字数硬切，不看结构': '固定ウィンドウ — 文字数で強制分割し、構造を考慮しない',
+    'Chunk Size (字符)': 'Chunk Size (文字)',
+    '结构感知模式下这是上限，实际按章节长度决定': '構造認識モードでは上限値となり、実際は章の長さに応じて決まります',
+    '建议 80~200；仅在需要硬切长段落时生效': '80~200 を推奨。長い段落を強制分割する場合のみ有効です',
+    '给每个片段加上所属标题前缀': '各チャンクに所属見出しの接頭辞を付加する',
+    '🔍 预览切分效果': '🔍 分割結果をプレビュー',
+    '💾 保存 RAG 设置': '💾 RAG 設定を保存',
+    '切分预览': '分割プレビュー',
+    '选择要预览的内容': 'プレビューする内容を選択',
+    '（粘贴文本）': '（テキストを貼り付け）',
+    '重新预览': '再プレビュー',
+    '上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。':
+      'txt / docx / xlsx / pdf 文書をアップロードすると、自動で解析 → 分割 → ベクトル化 → 取り込みを行います。',
+    '上传新文档': '新しい文書をアップロード',
+    '支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB':
+      '.txt / .md / .docx / .xlsx / .pdf に対応、1 ファイル ≤ 20MB',
+    '已上传文档': 'アップロード済み文書',
+    '加载中…': '読み込み中…',
+    '设置客服的名称、欢迎语、联系方式等。': 'サポートの名称、ウェルカムメッセージ、連絡先などを設定します。',
+    '客服名称': 'サポート名',
+    '头像 URL (可选)': 'アバター URL (任意)',
+    '联系电话': '電話番号',
+    '联系邮箱': 'メールアドレス',
+    '欢迎语': 'ウェルカムメッセージ',
+    '在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。':
+      'ここで RAG の Q&A 動作を直接テストできます。プレビューは iframe で分離されており、実際にサイトへ埋め込んだ場合と同じ動作になります。',
+    '🔄 重新加载': '🔄 再読み込み',
+    '↗︎ 在新标签页打开': '↗︎ 新しいタブで開く',
+    '💡 提示：知识库里没有相关内容时，客服会回答「抱歉，知识库中没有相关信息，我无法回答。」—— 这是 RAG 的预期行为。先到「知识文档」上传并入库文档，再来提问。':
+      '💡 ヒント：ナレッジベースに関連内容がない場合、サポートは「申し訳ありません。ナレッジベースに関連情報がないため、回答できません。」と答えます —— これは RAG の想定どおりの動作です。まず「ナレッジ文書」で文書をアップロードして取り込んでから質問してください。',
+    '把你的智能客服嵌入到任何网站、小程序或桌面应用中。': 'インテリジェントカスタマーサポートを任意のウェブサイト、ミニプログラム、デスクトップアプリに埋め込めます。',
+    '方式 1：<script> 标签嵌入（最简单）': '方法 1：<script> タグで埋め込み（最も簡単）',
+    '📋 复制代码': '📋 コードをコピー',
+    '方式 2：iframe 嵌入（完全隔离）': '方法 2：iframe で埋め込み（完全分離）',
+    '方式 3：微信 / 支付宝小程序': '方法 3：WeChat / Alipay ミニプログラム',
+    'Widget 配置文件': 'Widget 設定ファイル',
+    '☕ 打赏支持': '☕ 支援する',
+    '这个项目是免费开源的。如果它帮你省下了时间，可以请作者喝杯咖啡 —— 完全自愿。':
+      'このプロジェクトは無料のオープンソースです。時間の節約に役立ったなら、作者にコーヒーを一杯おごってください —— もちろん任意です。',
+    '微信': 'WeChat',
+    '支付宝': 'Alipay',
+    '用微信扫一扫': 'WeChat でスキャンしてください',
+    '⬆︎ 检测更新': '⬆︎ 更新を確認',
+    '检查是否有新版本': '新しいバージョンがあるか確認します',
+    '打赏支持作者': '作者を支援する',
+    '在 GitHub 上查看项目': 'GitHub でプロジェクトを見る',
+    '从厂商接口重新获取模型列表': 'プロバイダーの API からモデル一覧を再取得します',
+    '留空即可': '空欄のままで構いません',
+    '在这里粘贴一段文本试试切分效果…': 'ここにテキストを貼り付けて分割結果を試してください…',
+    '智能客服小助手': 'インテリジェントサポートアシスタント',
+    '您好，请问有什么可以帮您？': 'こんにちは。何かお手伝いできることはありますか？',
+    '客服组件预览': 'サポートコンポーネントのプレビュー',
+    '关闭': '閉じる',
+    '微信赞赏码': 'WeChat 送金コード',
+    '智能客服系统 · 管理后台': 'AI カスタマーサポート · 管理コンソール',
+    '切换语言 / Language': '言語を切り替え / Language',
+    // — runtime strings (toasts, status text, JS-built tables) —
+    '检查中…': '確認中…',
+    '后端在线': 'バックエンド オンライン',
+    '后端离线': 'バックエンド オフライン',
+    '后端离线：': 'バックエンド オフライン：',
+    '\n请确认服务已启动，且 API 地址正确。': '\nサービスが起動しているか、API アドレスが正しいかをご確認ください。',
+    '💡 还差最后一步：填入 API Key': '💡 あと一歩：API Key を入力してください',
+    '<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>':
+      '<li><strong>LLM API Key</strong> が未設定です（チャット生成用）</li>',
+    '<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>':
+      '<li><strong>Embedding API Key</strong> が未設定です（ドキュメントのベクトル化用）</li>',
+    '前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。':
+      '左側の <strong>「モデル設定」</strong> で Key を入力して保存してください。',
+    '⚙️ 去配置 API Key': '⚙️ API Key を設定する',
+    '<span class="spinner"></span>正在初始化…': '<span class="spinner"></span>初期化中…',
+    '🎉 初始化完成！': '🎉 初期化が完了しました！',
+    '<strong>下一步：</strong>前往「模型配置」填入 API Key 即可使用。':
+      '<strong>次のステップ：</strong>「モデル設定」で API Key を入力すればご利用いただけます。',
+    '初始化失败：': '初期化に失敗しました：',
+    'OpenAI 兼容 (/chat/completions)': 'OpenAI 互換 (/chat/completions)',
+    'Anthropic 兼容 (/messages)': 'Anthropic 互換 (/messages)',
+    '厂商': 'ベンダー',
+    '自定义 / 自建': 'カスタム / 自己構築',
+    '该厂商支持 {0} 种协议，切换会自动更新 Base URL':
+      'このベンダーは {0} 種類のプロトコルに対応しています。切り替えると Base URL が自動的に更新されます',
+    '该厂商仅支持这一种协议': 'このベンダーはこのプロトコルのみに対応しています',
+    '该厂商默认 embedding 模型：{0}': 'このベンダーのデフォルト embedding モデル：{0}',
+    '该厂商未登记 embedding 模型，可填其他厂商的（Key / URL 要一致）':
+      'このベンダーには embedding モデルが登録されていません。他のベンダーのものを入力できます（Key / URL は一致させてください）',
+    '<span style="color:#b45309;">⚠ 此厂商的预填地址/模型未经核实，请对照厂商文档确认后再保存。</span>':
+      '<span style="color:#b45309;">⚠ このベンダーの自動入力された URL / モデルは未検証です。ベンダーのドキュメントで確認してから保存してください。</span>',
+    '自定义厂商：填服务商给你的模型名，或点 🔄 尝试自动获取': 'カスタムベンダー：プロバイダーから提供されたモデル名を入力するか、🔄 をクリックして自動取得をお試しください',
+    '默认模型：{0}（可从上方下拉换）': 'デフォルトモデル：{0}（上のドロップダウンから変更できます）',
+    '上方下拉选择，或手动输入': '上のドロップダウンから選択、または手動で入力してください',
+    '<option value="">（获取中…）</option>': '<option value="">（取得中…）</option>',
+    '<option value="">（无法获取，请手动输入）</option>': '<option value="">（取得できません。手動で入力してください）</option>',
+    '— 厂商接口返回 {0} 个模型 —': '— ベンダー API から返されたモデル {0} 件 —',
+    '— 内置推荐 {0} 个 —': '— 組み込みの推奨 {0} 件 —',
+    '<option value="">（获取失败，请手动输入）</option>':
+      '<option value="">（取得に失敗しました。手動で入力してください）</option>',
+    '❌ 获取模型列表失败：': '❌ モデル一覧の取得に失敗しました：',
+    '自定义厂商没有默认值，请手动填写 Base URL 和模型名。': 'カスタムベンダーにはデフォルト値がありません。Base URL とモデル名を手動で入力してください。',
+    '✅ 已填入 {0} · {1} 的默认值（记得点保存）': '✅ {0} · {1} のデフォルト値を入力しました（保存を忘れずに）',
+    '已保存 {0}（留空则不修改）': '{0} を保存済み（空欄のままにすると変更しません）',
+    '已保存（留空则不修改）': '保存済み（空欄のままにすると変更しません）',
+    '本地文件持久化，开箱即用，无需额外服务。': 'ローカルファイルに永続化します。追加のサービスは不要で、そのまま使えます。',
+    '需要先启动 Qdrant 服务：docker compose up -d qdrant':
+      '先に Qdrant サービスを起動してください：docker compose up -d qdrant',
+    'URI 填 .db 路径 → Milvus Lite（零安装）；填 http://host:19530 → 连服务器。':
+      'URI に .db のパスを指定 → Milvus Lite（インストール不要）／http://host:19530 を指定 → サーバーに接続。',
+    '❌ Base URL 不能为空': '❌ Base URL は必須です',
+    '（自定义厂商必须手填）': '（カスタムベンダーの場合は手動入力が必須です）',
+    '❌ 模型名称不能为空': '❌ モデル名は必須です',
+    '✅ 对话模型已保存，立即生效': '✅ チャットモデルを保存しました。すぐに反映されます',
+    '❌ 保存失败：': '❌ 保存に失敗しました：',
+    '⏳ 正在测试连接…': '⏳ 接続をテスト中…',
+    '✅ 已复用对话模型的 Base URL 和你刚输入的 Key': '✅ チャットモデルの Base URL と、入力された Key を再利用しました',
+    'ℹ️ 已复用 Base URL。Key 请手动输入（已保存的密钥读不出来）':
+      'ℹ️ Base URL を再利用しました。Key は手動で入力してください（保存済みのキーは読み取れません）',
+    '❌ 向量模型 Base URL 不能为空': '❌ ベクトルモデルの Base URL は必須です',
+    '❌ 向量模型名称不能为空': '❌ ベクトルモデル名は必須です',
+    '✅ 向量模型已保存': '✅ ベクトルモデルを保存しました',
+    '⏳ 正在测试并探测维度…': '⏳ 接続テストと次元数の検出を実行中…',
+    '✅ {0} — 已自动把维度改为 {1}': '✅ {0} — 次元数を自動的に {1} に変更しました',
+    '✅ 已保存。注意：切换向量库需要重启后端 + 重新入库文档。':
+      '✅ 保存しました。注意：ベクトルストアを切り替えるには、バックエンドの再起動とドキュメントの再取り込みが必要です。',
+    '<span style="color:#b45309;">已开启：</span>检索不到内容时，AI 会用自己的知识回答，':
+      '<span style="color:#b45309;">有効：</span>検索で該当する内容が見つからない場合、AI が自身の知識で回答し、',
+    '不会再说「知识库中没有相关信息」。<br>': '「ナレッジベースに関連する情報はありません」とは応答しなくなります。<br>',
+    '⚠ 这类回答<strong>不保证准确</strong>（可能过时或编造），且用户无法区分哪句来自你的资料。':
+      '⚠ この種の回答は<strong>正確性を保証できません</strong>（古い情報や作り話の可能性があります）。また、どの文がお客様の資料に基づくものか、ユーザーには判別できません。',
+    '涉及价格、政策、承诺等场景建议关闭。': '価格・ポリシー・お約束などが関わる場面では、無効にすることをおすすめします。',
+    '<span style="color:#065f46;">已关闭（默认）：</span>只依据知识库回答，检索不到就明确说「没有相关信息」。':
+      '<span style="color:#065f46;">無効（デフォルト）：</span>ナレッジベースのみに基づいて回答し、見つからない場合は「関連する情報はありません」と明示します。',
+    '每句话都能追溯到你上传的文档。': 'すべての文がアップロードしたドキュメントまでたどれます。',
+    '✅ 已开启自主回答，立即生效': '✅ 自律回答を有効にしました。すぐに反映されます',
+    '✅ 已关闭自主回答，仅依据知识库回答': '✅ 自律回答を無効にしました。ナレッジベースのみに基づいて回答します',
+    '❌ Chunk Overlap ({0}) 必须小于 Chunk Size ({1})':
+      '❌ Chunk Overlap（{0}）は Chunk Size（{1}）より小さくする必要があります',
+    '✅ RAG 设置已保存。注意：已入库的文档需要重新入库才会按新设置切分。':
+      '✅ RAG 設定を保存しました。注意：すでに取り込み済みのドキュメントは、再取り込みしないと新しい設定では分割されません。',
+    '识别【章节】、Markdown 标题、第X章、Q&A、Excel 工作表，沿语义边界切分。多数文档用这个。':
+      '【章節】、Markdown 見出し、第X章、Q&A、Excel のシートを認識し、意味の境界に沿って分割します。ほとんどのドキュメントはこちらを使います。',
+    '不看结构，每 N 字硬切一刀。只在文档完全没有标题结构时才需要。':
+      '構造を考慮せず、N 文字ごとに機械的に分割します。ドキュメントに見出し構造がまったくない場合にのみ使用します。',
+    '<option value="">（粘贴文本）</option>': '<option value="">（テキストを貼り付け）</option>',
+    '<span style="color:#9ca3af;">请选择一个文档，或在下方粘贴文本。</span>':
+      '<span style="color:#9ca3af;">ドキュメントを選択するか、下にテキストを貼り付けてください。</span>',
+    '<span class="spinner-sm"></span>正在切分…': '<span class="spinner-sm"></span>分割中…',
+    '结构感知': '構造認識',
+    '固定窗口': '固定ウィンドウ',
+    '<strong>{0}</strong> · {1} 字 → ': '<strong>{0}</strong> · {1} 文字 → ',
+    '<strong style="color:#3b82f6;">{0} 个片段</strong> · ':
+      '<strong style="color:#3b82f6;">{0} 個のチャンク</strong> · ',
+    '策略 {0} · 片段长度 最小 {1} / 平均 {2} / 最大 {3} 字': '戦略 {0} · チャンク長 最小 {1} / 平均 {2} / 最大 {3} 文字',
+    ' <span style="color:#b45309;">（仅显示前 60 个）</span>':
+      ' <span style="color:#b45309;">（先頭 60 個のみ表示）</span>',
+    '· <span style="color:#9ca3af;">(无标题)</span>':
+      '· <span style="color:#9ca3af;">(見出しなし)</span>',
+    '· {0} 字': '· {0} 文字',
+    '✅ 客服信息已保存': '✅ カスタマーサポート情報を保存しました',
+    '⏳ 正在上传 {0}（{1} KB）…': '⏳ {0}（{1} KB）をアップロード中…',
+    '✅ 上传成功：{0} ({1} 字节)': '✅ アップロードが完了しました：{0} ({1} バイト)',
+    '⏳ 正在解析 + embedding + 入库…': '⏳ 解析 + embedding + 取り込みを実行中…',
+    '✅ 入库成功：{0} 个片段': '✅ 取り込みが完了しました：{0} 個のチャンク',
+    '⚠️ 入库失败：{0}': '⚠️ 取り込みに失敗しました：{0}',
+    '未知错误': '不明なエラー',
+    '<div class="empty">加载中…</div>': '<div class="empty">読み込み中…</div>',
+    '<div class="empty">还没有文档，拖一个文件到上面开始吧。</div>':
+      '<div class="empty">ドキュメントがまだありません。上にファイルをドラッグして始めましょう。</div>',
+    '0 个文档': '0 件のドキュメント',
+    '<table><thead><tr><th>文件名</th><th>大小</th><th>分片数</th><th>状态</th><th>操作</th></tr></thead><tbody>':
+      '<table><thead><tr><th>ファイル名</th><th>サイズ</th><th>チャンク数</th><th>ステータス</th><th>操作</th></tr></thead><tbody>',
+    '已上传': 'アップロード済み',
+    '处理中': '処理中',
+    '就绪': '準備完了',
+    '失败': '失敗',
+    '入库': '取り込み',
+    '删除': '削除',
+    '{0} 个文档（{1} 个已入库）': '{0} 件のドキュメント（{1} 件は取り込み済み）',
+    '<div class="empty">加载失败：{0}</div>': '<div class="empty">読み込みに失敗しました：{0}</div>',
+    '入库失败：': '取り込みに失敗しました：',
+    '确认删除该文档及其向量？': 'このドキュメントとそのベクトルを削除しますか？',
+    '删除失败：': '削除に失敗しました：',
+    '正在加载…': '読み込み中…',
+    '已加载 · 可以开始提问': '読み込み完了 · 質問を始められます',
+    '加载失败': '読み込みに失敗しました',
+    '已复制到剪贴板': 'クリップボードにコピーしました',
+    '复制以下代码：': '以下のコードをコピーしてください：',
+    '用支付宝扫一扫': 'Alipay でスキャン',
+    '用 QQ 扫一扫': 'QQ でスキャン',
+    '赞赏码': '支援用 QR コード',
+    '检查失败：': '確認に失敗しました：',
+    '还没有配置 GitHub 仓库，无法比对版本。': 'GitHub リポジトリが設定されていないため、バージョンを比較できません。',
+    '当前版本': '現在のバージョン',
+    '在 <code>backend/.env</code> 里加上仓库地址后重启即可：':
+      '<code>backend/.env</code> にリポジトリの URL を追加して再起動すれば完了です：',
+    '最新版本': '最新バージョン',
+    '更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：':
+      '更新する前にデータをバックアップしてください（<code>backend/data/</code> に設定と API Key が保存されています）。 サーバー上で次を実行します：',
+    '项目目录': 'プロジェクトディレクトリ',
+    '📋 复制命令': '📋 コマンドをコピー',
+    '查看发布说明 ↗': 'リリースノートを見る ↗',
+    '✓ 已复制': '✓ コピーしました',
+    '复制以下命令：': '以下のコマンドをコピーしてください：',
+  };
+
+  /** English catalog. */
+  var EN = {
+    '前往 <strong>「模型配置」</strong> 选择厂商并填入 API Key':
+      'Go to <strong>Model Config</strong> to pick a provider and enter your API Key',
+    '点击 <strong>「测试连接」</strong> 验证 Key 可用':
+      'Click <strong>Test Connection</strong> to verify the Key works',
+    '前往 <strong>「知识文档」</strong> 上传并入库文档':
+      'Go to <strong>Knowledge Documents</strong> to upload and index documents',
+    '在 <strong>「聊天预览」</strong> 立即体验': 'Try it right away in <strong>Chat Preview</strong>',
+    'API 根地址，末尾不要带 <code>/chat/completions</code>':
+      'API root URL — do not append <code>/chat/completions</code>',
+    '调用 <code>{base}/embeddings</code>': 'Calls <code>{base}/embeddings</code>',
+    '本地零安装（Milvus Lite）填 <code>./data/milvus.db</code>； 连服务器填 <code>http://localhost:19530</code>； Zilliz Cloud 填 <code>https://xxx.zillizcloud.com</code>':
+      'For local zero-install (Milvus Lite) use <code>./data/milvus.db</code>; for a server use <code>http://localhost:19530</code>; for Zilliz Cloud use <code>https://xxx.zillizcloud.com</code>',
+    '开启后，检索到「Q4：数据安全吗？」时会带上 <code>[常见问题]</code>， 让模型知道这段话的出处':
+      'When enabled, retrieving "Q4: Is the data secure?" also carries <code>[FAQ]</code>, so the model knows where the text came from',
+    '拖拽文件到这里，或 <strong>点击选择</strong>': 'Drag files here, or <strong>click to select</strong>',
+    '把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：':
+      'Deploy <code>customer-service.js</code> to your CDN, then add this to the target page:',
+    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。':
+      '💡 No need to set the agent name, avatar, or welcome message here — the widget reads the Agent Info page automatically, so one change applies to every embedded site.<br> 💡 After updating the widget, bump <code>?v=1</code> (<code>?v=2</code>…), or browsers will keep using the cached old version.',
+    '<code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20）， 给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。':
+      '<code>400×636</code> is the size needed once the panel expands (panel 360×540 + button 76 + margin 20); any smaller and the panel gets clipped. <code>background:transparent</code> keeps the extra area from showing a white background.',
+    '小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：':
+      'Mini Programs do not support <code>&lt;script&gt;</code> injection — use a <code>&lt;web-view&gt;</code> component to load the remote page:',
+    '直接下载：<a href="../widget/customer-service.js" download>customer-service.js</a> （19KB · 零依赖）':
+      'Direct download: <a href="../widget/customer-service.js" download>customer-service.js</a> (19KB · zero dependencies)',
+    '🤖 智能客服': '🤖 Intelligent Customer Service',
+    '概览': 'Dashboard',
+    '模型配置': 'Model Config',
+    '向量库': 'Vector DB',
+    'RAG 设置': 'RAG Settings',
+    '知识文档': 'Knowledge Documents',
+    '客服信息': 'Agent Info',
+    '聊天预览': 'Chat Preview',
+    '嵌入指南': 'Embed Guide',
+    '管理后台': 'Admin Console',
+    '未连接': 'Not connected',
+    '检测更新': 'Check for updates',
+    '打赏支持': 'Donate',
+    '⚠️ 检测到系统未完成初始化': '⚠️ System initialization is incomplete',
+    '系统检测到以下问题：': 'The following issues were found:',
+    '点击下方按钮一键完成初始化（建表 + 写入默认配置 + 创建必要目录）。':
+      'Click the button below to finish initialization (create tables + write default config + create required directories).',
+    '🚀 一键初始化': '🚀 Initialize now',
+    '🔄 重新检测': '🔄 Re-check',
+    '✅ 初始化完成！': '✅ Initialization complete!',
+    '系统概览': 'System Overview',
+    '在这里查看系统状态并快速跳转到各配置页。': 'Check system status here and jump to any config page.',
+    '快速开始': 'Quick Start',
+    '当前模型': 'Current Model',
+    '配置智能客服使用的 AI 模型。修改后立即生效，无需重启。':
+      'Configure the AI models used by the agent. Changes take effect immediately, no restart needed.',
+    '💬 对话模型（生成回答）': '💬 Chat Model (answer generation)',
+    '厂商 (Provider)': 'Provider',
+    '选择一个 LLM 厂商': 'Pick an LLM provider',
+    '协议': 'Protocol',
+    '切换协议会自动更新 Base URL': 'Switching protocol updates the Base URL automatically',
+    '留空表示不修改已保存的密钥': 'Leave blank to keep the saved key',
+    '*必填': '*Required',
+    '模型名称': 'Model Name',
+    '上方下拉选择，或在此手动输入模型名': 'Pick from the dropdown above, or type a model name here',
+    '越低越稳定（推荐 ≤ 0.3 减少幻觉）': 'Lower is more stable (≤ 0.3 recommended to reduce hallucination)',
+    '↩︎ 用厂商默认值填充': '↩︎ Fill with provider defaults',
+    '🔌 测试连接': '🔌 Test Connection',
+    '💾 保存对话模型': '💾 Save Chat Model',
+    '🧬 向量模型（文档 Embedding）': '🧬 Vector Model (document Embedding)',
+    '用于把文档和问题转成向量。多数厂商的 embedding 接口与对话接口同一个 Key 和 Base URL。':
+      'Turns documents and questions into vectors. For most providers the embedding API shares the same Key and Base URL as chat.',
+    'Embedding 模型': 'Embedding Model',
+    '向量维度': 'Vector Dimensions',
+    '必须与模型实际输出一致（点「测试」可自动探测）':
+      'Must match the model\'s actual output (click Test to auto-detect)',
+    '⬆︎ 复用对话模型的 Key / URL': '⬆︎ Reuse chat model\'s Key / URL',
+    '🔌 测试并探测维度': '🔌 Test and detect dimensions',
+    '💾 保存向量模型': '💾 Save Vector Model',
+    '向量库配置': 'Vector DB Config',
+    '修改向量库需要重启后端服务（SQLite + Chroma 持久化已开箱即用）。':
+      'Changing the Vector DB requires restarting the backend (SQLite + Chroma persistence works out of the box).',
+    '基础设置': 'Basic Settings',
+    '向量库类型': 'Vector DB Type',
+    'Chroma (本地文件，推荐)': 'Chroma (local file, recommended)',
+    'Qdrant (生产级，需服务)': 'Qdrant (production-grade, needs a service)',
+    'Milvus (企业级，本地 Lite / 远端集群)': 'Milvus (enterprise-grade, local Lite / remote cluster)',
+    '集合名': 'Collection Name',
+    'Token / API Key（Zilliz Cloud 才需要）': 'Token / API Key (Zilliz Cloud only)',
+    'Database 名（可选）': 'Database Name (optional)',
+    '必须与 Embedding 模型输出一致': 'Must match the Embedding model\'s output',
+    '（Milvus 建集合时固定，改了要新建集合）':
+      '(Fixed when the Milvus collection is created; changing it requires a new collection)',
+    '持久化目录 (Chroma)': 'Persistence Directory (Chroma)',
+    '💾 保存': '💾 Save',
+    '提示：切换向量库后需要重新上传并入库文档。':
+      'Note: after switching the Vector DB you must re-upload and re-index documents.',
+    '检索增强生成的参数调优。': 'Tune retrieval-augmented generation parameters.',
+    '检索参数': 'Retrieval Parameters',
+    '每次检索返回的相关片段数': 'Number of relevant chunks returned per search',
+    '相似度阈值 (0~1)': 'Similarity Threshold (0~1)',
+    '低于此值视为不相关，会触发「无法回答」': 'Below this value counts as irrelevant and triggers "cannot answer"',
+    '回答策略': 'Answer Strategy',
+    '知识库没有相关内容时，允许 AI 用自己的知识回答':
+      'When the knowledge base has nothing relevant, let the AI answer from its own knowledge',
+    '💾 保存回答策略': '💾 Save Answer Strategy',
+    '文本切分': 'Text Chunking',
+    '切分策略': 'Chunking Strategy',
+    '结构感知（推荐）— 按章节 / 标题 / Q&A 切，不切断语义':
+      'Structure-aware (recommended) — split by section / heading / Q&A without breaking meaning',
+    '固定窗口 — 按字数硬切，不看结构': 'Fixed window — hard split by character count, ignoring structure',
+    'Chunk Size (字符)': 'Chunk Size (characters)',
+    '结构感知模式下这是上限，实际按章节长度决定':
+      'In structure-aware mode this is the upper limit; actual size follows section length',
+    '建议 80~200；仅在需要硬切长段落时生效':
+      '80~200 recommended; only applies when long paragraphs need a hard split',
+    '给每个片段加上所属标题前缀': 'Prefix each chunk with its parent heading',
+    '🔍 预览切分效果': '🔍 Preview chunking',
+    '💾 保存 RAG 设置': '💾 Save RAG Settings',
+    '切分预览': 'Chunking Preview',
+    '选择要预览的内容': 'Select content to preview',
+    '（粘贴文本）': '(Paste text)',
+    '重新预览': 'Preview again',
+    '上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。':
+      'Upload txt / docx / xlsx / pdf documents — parse → chunk → vectorize → index automatically.',
+    '上传新文档': 'Upload New Document',
+    '支持 .txt / .md / .docx / .xlsx / .pdf，单文件 ≤ 20MB':
+      'Supports .txt / .md / .docx / .xlsx / .pdf, up to 20MB per file',
+    '已上传文档': 'Uploaded Documents',
+    '加载中…': 'Loading…',
+    '设置客服的名称、欢迎语、联系方式等。': 'Set the agent\'s name, welcome message, contact details, and more.',
+    '客服名称': 'Agent Name',
+    '头像 URL (可选)': 'Avatar URL (optional)',
+    '联系电话': 'Phone',
+    '联系邮箱': 'Email',
+    '欢迎语': 'Welcome Message',
+    '在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。':
+      'Test RAG Q&A right here. The preview is isolated in an iframe, matching a real embed on your site.',
+    '🔄 重新加载': '🔄 Reload',
+    '↗︎ 在新标签页打开': '↗︎ Open in new tab',
+    '💡 提示：知识库里没有相关内容时，客服会回答「抱歉，知识库中没有相关信息，我无法回答。」—— 这是 RAG 的预期行为。先到「知识文档」上传并入库文档，再来提问。':
+      '💡 Note: when the knowledge base has nothing relevant, the agent replies "Sorry, there is no relevant information in the knowledge base, so I cannot answer." — this is expected RAG behavior. Upload and index documents under Knowledge Documents first, then ask again.',
+    '把你的智能客服嵌入到任何网站、小程序或桌面应用中。':
+      'Embed your agent in any website, Mini Program, or desktop app.',
+    '方式 1：<script> 标签嵌入（最简单）': 'Option 1: <script> tag embed (easiest)',
+    '📋 复制代码': '📋 Copy Code',
+    '方式 2：iframe 嵌入（完全隔离）': 'Option 2: iframe embed (fully isolated)',
+    '方式 3：微信 / 支付宝小程序': 'Option 3: WeChat / Alipay Mini Program',
+    'Widget 配置文件': 'Widget Config File',
+    '☕ 打赏支持': '☕ Donate',
+    '这个项目是免费开源的。如果它帮你省下了时间，可以请作者喝杯咖啡 —— 完全自愿。':
+      'This project is free and open source. If it saved you time, you can buy the author a coffee — entirely optional.',
+    '微信': 'WeChat',
+    '支付宝': 'Alipay',
+    '用微信扫一扫': 'Scan with WeChat',
+    '⬆︎ 检测更新': '⬆︎ Check for updates',
+    '检查是否有新版本': 'Check for a new version',
+    '打赏支持作者': 'Donate to the author',
+    '在 GitHub 上查看项目': 'View the project on GitHub',
+    '从厂商接口重新获取模型列表': 'Refetch the model list from the provider API',
+    '留空即可': 'Leave blank',
+    '在这里粘贴一段文本试试切分效果…': 'Paste some text here to try chunking…',
+    '智能客服小助手': 'Smart Support Assistant',
+    '您好，请问有什么可以帮您？': 'Hi! How can I help you?',
+    '客服组件预览': 'Widget Preview',
+    '关闭': 'Close',
+    '微信赞赏码': 'WeChat donate QR code',
+    '智能客服系统 · 管理后台': 'Intelligent Customer Service · Admin Console',
+    '切换语言 / Language': 'Switch language',
+    // — runtime strings (toasts, status text, JS-built tables) —
+    '检查中…': 'Checking…',
+    '后端在线': 'Backend online',
+    '后端离线': 'Backend offline',
+    '后端离线：': 'Backend offline:',
+    '\n请确认服务已启动，且 API 地址正确。':
+      '\nMake sure the service is running and the API address is correct.',
+    '💡 还差最后一步：填入 API Key': '💡 One last step: enter your API Key',
+    '<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>':
+      '<li>No <strong>LLM API Key</strong> configured (used for chat generation)</li>',
+    '<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>':
+      '<li>No <strong>Embedding API Key</strong> configured (used for document vectorization)</li>',
+    '前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。':
+      'Open <strong>"Model Settings"</strong> in the left sidebar, enter your key and save.',
+    '⚙️ 去配置 API Key': '⚙️ Configure API Key',
+    '<span class="spinner"></span>正在初始化…': '<span class="spinner"></span>Initializing…',
+    '🎉 初始化完成！': '🎉 Initialization complete!',
+    '<strong>下一步：</strong>前往「模型配置」填入 API Key 即可使用。':
+      '<strong>Next step:</strong> open "Model Settings" and enter your API Key to start using the app.',
+    '初始化失败：': 'Initialization failed:',
+    'OpenAI 兼容 (/chat/completions)': 'OpenAI-compatible (/chat/completions)',
+    'Anthropic 兼容 (/messages)': 'Anthropic-compatible (/messages)',
+    '厂商': 'Provider',
+    '自定义 / 自建': 'Custom / Self-hosted',
+    '该厂商支持 {0} 种协议，切换会自动更新 Base URL':
+      'This provider supports {0} protocols; switching one updates the Base URL automatically',
+    '该厂商仅支持这一种协议': 'This provider supports only this protocol',
+    '该厂商默认 embedding 模型：{0}': 'Default embedding model for this provider: {0}',
+    '该厂商未登记 embedding 模型，可填其他厂商的（Key / URL 要一致）':
+      'No embedding model is registered for this provider; you may enter one from another provider (the Key / URL must match)',
+    '<span style="color:#b45309;">⚠ 此厂商的预填地址/模型未经核实，请对照厂商文档确认后再保存。</span>':
+      '<span style="color:#b45309;">⚠ The prefilled URL and model for this provider are unverified. Check the provider\'s documentation before saving.</span>',
+    '自定义厂商：填服务商给你的模型名，或点 🔄 尝试自动获取':
+      'Custom provider: enter the model name your provider gave you, or click 🔄 to try fetching it automatically',
+    '默认模型：{0}（可从上方下拉换）': 'Default model: {0} (change it with the dropdown above)',
+    '上方下拉选择，或手动输入': 'Select from the dropdown above, or type a name',
+    '<option value="">（获取中…）</option>': '<option value="">(Fetching…)</option>',
+    '<option value="">（无法获取，请手动输入）</option>':
+      '<option value="">(Unavailable — enter manually)</option>',
+    '— 厂商接口返回 {0} 个模型 —': '— {0} models returned by the provider API —',
+    '— 内置推荐 {0} 个 —': '— {0} built-in recommendations —',
+    '<option value="">（获取失败，请手动输入）</option>':
+      '<option value="">(Fetch failed — enter manually)</option>',
+    '❌ 获取模型列表失败：': '❌ Failed to fetch the model list:',
+    '自定义厂商没有默认值，请手动填写 Base URL 和模型名。':
+      'Custom providers have no defaults. Enter the Base URL and model name manually.',
+    '✅ 已填入 {0} · {1} 的默认值（记得点保存）': '✅ Filled in the defaults for {0} · {1} (remember to save)',
+    '已保存 {0}（留空则不修改）': '{0} saved (leave blank to keep the current value)',
+    '已保存（留空则不修改）': 'Saved (leave blank to keep the current value)',
+    '本地文件持久化，开箱即用，无需额外服务。':
+      'Persisted to local files. Works out of the box, no extra services required.',
+    '需要先启动 Qdrant 服务：docker compose up -d qdrant':
+      'Start the Qdrant service first: docker compose up -d qdrant',
+    'URI 填 .db 路径 → Milvus Lite（零安装）；填 http://host:19530 → 连服务器。':
+      'Set the URI to a .db path for Milvus Lite (zero install); use http://host:19530 to connect to a server.',
+    '❌ Base URL 不能为空': '❌ Base URL cannot be empty',
+    '（自定义厂商必须手填）': '(custom providers must enter it manually)',
+    '❌ 模型名称不能为空': '❌ Model name cannot be empty',
+    '✅ 对话模型已保存，立即生效': '✅ Chat model saved and applied immediately',
+    '❌ 保存失败：': '❌ Save failed:',
+    '⏳ 正在测试连接…': '⏳ Testing connection…',
+    '✅ 已复用对话模型的 Base URL 和你刚输入的 Key':
+      '✅ Reused the chat model\'s Base URL together with the key you just entered',
+    'ℹ️ 已复用 Base URL。Key 请手动输入（已保存的密钥读不出来）':
+      'ℹ️ Base URL reused. Enter the key manually (saved keys cannot be read back)',
+    '❌ 向量模型 Base URL 不能为空': '❌ Embedding model Base URL cannot be empty',
+    '❌ 向量模型名称不能为空': '❌ Embedding model name cannot be empty',
+    '✅ 向量模型已保存': '✅ Embedding model saved',
+    '⏳ 正在测试并探测维度…': '⏳ Testing connection and detecting dimensions…',
+    '✅ {0} — 已自动把维度改为 {1}': '✅ {0} — dimensions automatically set to {1}',
+    '✅ 已保存。注意：切换向量库需要重启后端 + 重新入库文档。':
+      '✅ Saved. Note: switching the vector store requires restarting the backend and re-ingesting your documents.',
+    '<span style="color:#b45309;">已开启：</span>检索不到内容时，AI 会用自己的知识回答，':
+      '<span style="color:#b45309;">Enabled:</span> when nothing is retrieved, the AI answers from its own knowledge,',
+    '不会再说「知识库中没有相关信息」。<br>':
+      'and no longer replies "No relevant information in the knowledge base".<br>',
+    '⚠ 这类回答<strong>不保证准确</strong>（可能过时或编造），且用户无法区分哪句来自你的资料。':
+      '⚠ Answers like these are <strong>not guaranteed to be accurate</strong> (they may be outdated or fabricated), and users cannot tell which parts come from your own material.',
+    '涉及价格、政策、承诺等场景建议关闭。':
+      'Turning this off is recommended for pricing, policies, commitments and similar topics.',
+    '<span style="color:#065f46;">已关闭（默认）：</span>只依据知识库回答，检索不到就明确说「没有相关信息」。':
+      '<span style="color:#065f46;">Disabled (default):</span> answers come only from the knowledge base; when nothing is retrieved, the AI states plainly that there is no relevant information.',
+    '每句话都能追溯到你上传的文档。': 'Every sentence can be traced back to a document you uploaded.',
+    '✅ 已开启自主回答，立即生效': '✅ Answering from model knowledge enabled and applied immediately',
+    '✅ 已关闭自主回答，仅依据知识库回答':
+      '✅ Answering from model knowledge disabled; answers now come only from the knowledge base',
+    '❌ Chunk Overlap ({0}) 必须小于 Chunk Size ({1})':
+      '❌ Chunk Overlap ({0}) must be smaller than Chunk Size ({1})',
+    '✅ RAG 设置已保存。注意：已入库的文档需要重新入库才会按新设置切分。':
+      '✅ RAG settings saved. Note: documents already ingested must be re-ingested before they are chunked with the new settings.',
+    '识别【章节】、Markdown 标题、第X章、Q&A、Excel 工作表，沿语义边界切分。多数文档用这个。':
+      'Detects section markers, Markdown headings, chapter numbers, Q&A pairs and Excel worksheets, then splits along semantic boundaries. Use this for most documents.',
+    '不看结构，每 N 字硬切一刀。只在文档完全没有标题结构时才需要。':
+      'Ignores structure and cuts every N characters. Only needed when a document has no heading structure at all.',
+    '<option value="">（粘贴文本）</option>': '<option value="">(Paste text)</option>',
+    '<span style="color:#9ca3af;">请选择一个文档，或在下方粘贴文本。</span>':
+      '<span style="color:#9ca3af;">Select a document, or paste text below.</span>',
+    '<span class="spinner-sm"></span>正在切分…': '<span class="spinner-sm"></span>Chunking…',
+    '结构感知': 'Structure-aware',
+    '固定窗口': 'Fixed window',
+    '<strong>{0}</strong> · {1} 字 → ': '<strong>{0}</strong> · {1} characters → ',
+    '<strong style="color:#3b82f6;">{0} 个片段</strong> · ':
+      '<strong style="color:#3b82f6;">{0} chunks</strong> · ',
+    '策略 {0} · 片段长度 最小 {1} / 平均 {2} / 最大 {3} 字':
+      'Strategy {0} · chunk length min {1} / avg {2} / max {3} characters',
+    ' <span style="color:#b45309;">（仅显示前 60 个）</span>':
+      ' <span style="color:#b45309;">(showing the first 60 only)</span>',
+    '· <span style="color:#9ca3af;">(无标题)</span>':
+      '· <span style="color:#9ca3af;">(no title)</span>',
+    '· {0} 字': '· {0} characters',
+    '✅ 客服信息已保存': '✅ Customer service details saved',
+    '⏳ 正在上传 {0}（{1} KB）…': '⏳ Uploading {0} ({1} KB)…',
+    '✅ 上传成功：{0} ({1} 字节)': '✅ Upload complete: {0} ({1} bytes)',
+    '⏳ 正在解析 + embedding + 入库…': '⏳ Parsing + embedding + ingesting…',
+    '✅ 入库成功：{0} 个片段': '✅ Ingested {0} chunks',
+    '⚠️ 入库失败：{0}': '⚠️ Ingest failed: {0}',
+    '未知错误': 'Unknown error',
+    '<div class="empty">加载中…</div>': '<div class="empty">Loading…</div>',
+    '<div class="empty">还没有文档，拖一个文件到上面开始吧。</div>':
+      '<div class="empty">No documents yet. Drag a file onto the area above to get started.</div>',
+    '0 个文档': '0 documents',
+    '<table><thead><tr><th>文件名</th><th>大小</th><th>分片数</th><th>状态</th><th>操作</th></tr></thead><tbody>':
+      '<table><thead><tr><th>File name</th><th>Size</th><th>Chunks</th><th>Status</th><th>Actions</th></tr></thead><tbody>',
+    '已上传': 'Uploaded',
+    '处理中': 'Processing',
+    '就绪': 'Ready',
+    '失败': 'Failed',
+    '入库': 'Ingest',
+    '删除': 'Delete',
+    '{0} 个文档（{1} 个已入库）': '{0} documents ({1} ingested)',
+    '<div class="empty">加载失败：{0}</div>': '<div class="empty">Failed to load: {0}</div>',
+    '入库失败：': 'Ingest failed:',
+    '确认删除该文档及其向量？': 'Delete this document and its vectors?',
+    '删除失败：': 'Delete failed:',
+    '正在加载…': 'Loading…',
+    '已加载 · 可以开始提问': 'Loaded · ready for questions',
+    '加载失败': 'Load failed',
+    '已复制到剪贴板': 'Copied to clipboard',
+    '复制以下代码：': 'Copy the code below:',
+    '用支付宝扫一扫': 'Scan with Alipay',
+    '用 QQ 扫一扫': 'Scan with QQ',
+    '赞赏码': 'Donation QR code',
+    '检查失败：': 'Check failed:',
+    '还没有配置 GitHub 仓库，无法比对版本。':
+      'No GitHub repository is configured, so versions cannot be compared.',
+    '当前版本': 'Current version',
+    '在 <code>backend/.env</code> 里加上仓库地址后重启即可：':
+      'Add the repository URL to <code>backend/.env</code> and restart:',
+    '最新版本': 'Latest version',
+    '更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：':
+      'Back up your data before updating (<code>backend/data/</code> holds your configuration and API keys). Run this on the server:',
+    '项目目录': 'Project directory',
+    '📋 复制命令': '📋 Copy Command',
+    '查看发布说明 ↗': 'View release notes ↗',
+    '✓ 已复制': '✓ Copied',
+    '复制以下命令：': 'Copy the command below:',
+  };
+
+  // -----------------------------------------------------------------------
+  //  Lookup
+  // -----------------------------------------------------------------------
+
+  /**
+   * Initial language, resolved fully offline.
+   *
+   * Delegates to shared/locale.js: manual choice (localStorage) > timezone
+   * region > browser language > English. No IP geolocation, because on an
+   * intranet the client IP is a 10.x/192.168.x address that carries no region
+   * and no online geo service is reachable anyway.
+   */
+  var _lang = (function () {
+    // detect() returns {locale, source}; only the code matters here.
+    if (root.CSLocale) return root.CSLocale.detect().locale;
+    // locale.js failed to load — fall back to the source language rather than
+    // rendering a half-translated page.
+    try {
+      return (root.localStorage && root.localStorage.getItem(STORAGE_KEY)) || SOURCE_LANG;
+    } catch (_) { return SOURCE_LANG; }
+  })();
+
+  var _catalogs = { 'zh-TW': ZH_TW, 'ja': JA, 'en': EN };
+
+  function t(msgid) {
+    var cat = _catalogs[_lang];
+    if (!cat) return msgid;            // zh-CN, or an unknown code
+    return cat[msgid] !== undefined ? cat[msgid] : msgid;
+  }
+
+  /**
+   * Is ``msgid`` present in ``lang``'s catalog? (Defaults to the current one.)
+   *
+   * Exists for i18n-check.mjs. It cannot ask ``t()`` instead, because plenty of
+   * real translations are identical to the source — 微信, 保存 and Embedding 模型
+   * are spelled the same in Traditional Chinese and Japanese — so
+   * ``t(k) === k`` cannot tell "same in this language" from "nobody translated
+   * it". Presence can.
+   */
+  function has(msgid, lang) {
+    var code = lang || _lang;
+    if (code === SOURCE_LANG) return true;   // the msgid *is* the zh-CN text
+    var cat = _catalogs[code];
+    return !!cat && cat[msgid] !== undefined;
+  }
+
+  /**
+   * Collapse whitespace runs to a single space.
+   *
+   * ``data-i18n-html`` msgids come from innerHTML, which carries the source
+   * file's indentation and line breaks. The catalog keys are written on one
+   * line, so both sides have to be normalised or nothing would ever match.
+   */
+  function norm(s) {
+    return String(s).replace(/\s+/g, ' ').trim();
+  }
+
+  // -----------------------------------------------------------------------
+  //  DOM walker
+  // -----------------------------------------------------------------------
+
+  /**
+   * Remember the ORIGINAL Chinese text on the element itself the first time we
+   * see it, and always translate from that.
+   *
+   * Without this, the second switch breaks: after zh-CN → en the DOM holds
+   * "Dashboard", and looking *that* up finds nothing, so en → ja would leave
+   * the page in English forever. The msgid has to survive the substitution.
+   *
+   * Stored as a JS property rather than a data-* attribute so it doesn't bloat
+   * the serialised DOM. Elements that JS re-renders lose it along with the
+   * element, and get re-snapshotted from their fresh Chinese content — which is
+   * exactly right, because renderers emit Chinese source text.
+   */
+  function msgidOf(el, prop, read) {
+    if (el[prop] === undefined) el[prop] = read();
+    return el[prop];
+  }
+
+  function apply(rootNode) {
+    var doc = rootNode || root.document;
+    var list, i, el;
+
+    // data-i18n → textContent
+    list = doc.querySelectorAll('[data-i18n]');
+    for (i = 0; i < list.length; i++) {
+      el = list[i];
+      // norm(), not trim(): a msgid that spans several source lines arrives
+      // here with the file's indentation baked into textContent, while the
+      // catalog key is written on one line. Trimming only fixes the ends.
+      var key = msgidOf(el, '_csMsgid', function () { return norm(el.textContent || ''); });
+      if (key) el.textContent = t(key);
+    }
+
+    // data-i18n-html → innerHTML. Safe to assign innerHTML: both the msgid and
+    // the translation come from this file, never from user input.
+    list = doc.querySelectorAll('[data-i18n-html]');
+    for (i = 0; i < list.length; i++) {
+      el = list[i];
+      var hkey = msgidOf(el, '_csMsgidHtml', function () { return norm(el.innerHTML); });
+      if (hkey) el.innerHTML = t(hkey);
+    }
+
+    // data-i18n-attr="title,placeholder" → each named attribute's value
+    list = doc.querySelectorAll('[data-i18n-attr]');
+    for (i = 0; i < list.length; i++) {
+      el = list[i];
+      var names = (el.getAttribute('data-i18n-attr') || '').split(',');
+      if (el._csMsgidAttr === undefined) {
+        el._csMsgidAttr = {};
+        for (var s = 0; s < names.length; s++) {
+          var n0 = names[s].trim();
+          if (n0) el._csMsgidAttr[n0] = el.getAttribute(n0) || '';
+        }
+      }
+      for (var a = 0; a < names.length; a++) {
+        var attrName = names[a].trim();
+        var orig = attrName && el._csMsgidAttr[attrName];
+        if (orig) el.setAttribute(attrName, t(orig));
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  //  Language switcher
+  // -----------------------------------------------------------------------
+
+  function setLang(code) {
+    if (!code) return;
+    var ok = false;
+    for (var i = 0; i < SUPPORTED.length; i++) {
+      if (SUPPORTED[i] === code) { ok = true; break; }
+    }
+    if (!ok) return;
+    _lang = code;
+    if (root.CSLocale) root.CSLocale.save(code);
+    else { try { if (root.localStorage) root.localStorage.setItem(STORAGE_KEY, code); } catch (_) {} }
+
+    syncHtmlLang();
+    apply(root.document);
+    markActive();
+
+    var label = root.document.getElementById('langLabel');
+    if (label) label.textContent = labelFor(code);
+
+    // The chat-preview iframe runs the widget in its own document, so it can't
+    // see this change. Reloading it with ?lang= makes the preview answer in the
+    // language the console is now showing.
+    var frame = root.document.getElementById('chatFrame');
+    if (frame && frame.src) {
+      try {
+        var u = new URL(frame.src, root.location.href);
+        u.searchParams.set('lang', code);
+        frame.src = u.toString();
+      } catch (_) {}
+    }
+
+    // Let page code react (re-render lists that were built with t()).
+    try {
+      root.document.dispatchEvent(new CustomEvent('cs-lang-change', { detail: { lang: code } }));
+    } catch (_) {}
+  }
+
+  function getLang() { return _lang; }
+
+  /** Label shown on the globe button = the current language, in its own script. */
+  function labelFor(code) {
+    for (var i = 0; i < LOCALES.length; i++) {
+      if (LOCALES[i].code === code) return LOCALES[i].label;
+    }
+    return code;
+  }
+
+  /**
+   * Build the dropdown, wire the button, and translate the page.
+   *
+   * Called on DOMContentLoaded. Safe to call twice.
+   */
+  function mount() {
+    var doc = root.document;
+    var btn = doc.getElementById('langBtn');
+    var menu = doc.getElementById('langMenu');
+    var label = doc.getElementById('langLabel');
+
+    if (menu && !menu.childNodes.length) {
+      for (var i = 0; i < LOCALES.length; i++) {
+        (function (loc) {
+          var b = doc.createElement('button');
+          b.type = 'button';
+          b.textContent = loc.label;
+          b.setAttribute('data-lang', loc.code);
+          b.setAttribute('lang', loc.htmlLang);   // let the browser pick the right font
+          b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            closeMenu();
+            setLang(loc.code);
+          });
+          menu.appendChild(b);
+        })(LOCALES[i]);
+      }
+    }
+
+    if (btn && !btn._csWired) {
+      btn._csWired = true;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!menu) return;
+        var open = menu.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      // Any click elsewhere dismisses the menu.
+      doc.addEventListener('click', closeMenu);
+    }
+
+    if (label) label.textContent = labelFor(_lang);
+    syncHtmlLang();
+    apply(doc);
+    markActive();
+  }
+
+  function closeMenu() {
+    var menu = root.document.getElementById('langMenu');
+    var btn = root.document.getElementById('langBtn');
+    if (menu) menu.classList.remove('open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function markActive() {
+    var buttons = root.document.querySelectorAll('#langMenu button');
+    for (var b = 0; b < buttons.length; b++) {
+      if (buttons[b].getAttribute('data-lang') === _lang) buttons[b].classList.add('active');
+      else buttons[b].classList.remove('active');
+    }
+  }
+
+  function syncHtmlLang() {
+    for (var j = 0; j < LOCALES.length; j++) {
+      if (LOCALES[j].code === _lang) {
+        root.document.documentElement.setAttribute('lang', LOCALES[j].htmlLang);
+        return;
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  //  Expose
+  // -----------------------------------------------------------------------
+
+  root.CSAdminI18n = {
+    t: t,
+    has: has,
+    apply: apply,
+    mount: mount,
+    setLang: setLang,
+    getLang: getLang,
+    LOCALES: LOCALES,
+    SUPPORTED: SUPPORTED,
+    STORAGE_KEY: STORAGE_KEY,
+    SOURCE_LANG: SOURCE_LANG,
+  };
+
+  if (root.document) {
+    if (root.document.readyState === 'loading') {
+      root.document.addEventListener('DOMContentLoaded', mount, { once: true });
+    } else {
+      mount();
+    }
+  }
+})(typeof window !== 'undefined' ? window : globalThis);

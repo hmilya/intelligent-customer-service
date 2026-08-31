@@ -18,12 +18,14 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from ..adapters.base import LLMMessage
 from ..core.config import Settings, get_settings
 from ..core.exceptions import LLMError, VectorStoreError
+from ..core.i18n import AGENT_NAME, normalize_lang, pick
 from ..prompts import (
     FALLBACK_SYSTEM_PROMPT,
+    NO_HIT_REPLY,
     PARTIAL_KNOWLEDGE_RULE,
-    RAG_NO_HIT_REPLY,
     RAG_SYSTEM_PROMPT,
     build_rag_user_prompt,
+    output_lang_rule,
 )
 from ..vector_store.base import BaseVectorStore, VectorHit
 from .embedding_service import EmbeddingService
@@ -137,9 +139,12 @@ class RAGService:
         self,
         question: str,
         history: Optional[List[LLMMessage]] = None,
-        agent_name: str = "智能客服小助手",
+        agent_name: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> Tuple[List[LLMMessage], List[Dict], bool]:
         """Build the prompt. Returns (messages, sources, used_model_knowledge)."""
+        lang = normalize_lang(lang)
+        agent_name = agent_name or pick(AGENT_NAME, lang)
         cfg = await self._rag_config()
         hits = await self._retrieve(question, cfg)
         allow = bool(cfg["allow_model_knowledge"])
@@ -161,6 +166,7 @@ class RAGService:
                 best, float(cfg["relevance_threshold"]),
             )
             system = FALLBACK_SYSTEM_PROMPT.format(agent_name=agent_name)
+            system += output_lang_rule(lang)
             messages: List[LLMMessage] = [LLMMessage(role="system", content=system)]
             if history:
                 messages.extend(history)
@@ -170,14 +176,16 @@ class RAGService:
         context_blocks, sources = _format_hits(hits)
         system = RAG_SYSTEM_PROMPT.format(
             agent_name=agent_name,
-            refusal_reply=RAG_NO_HIT_REPLY,
+            refusal_reply=pick(NO_HIT_REPLY, lang),
         )
         if allow:
             # Retrieval looks relevant, but the documents may only cover part of
             # the question — let the model fill the gaps.
             system += PARTIAL_KNOWLEDGE_RULE
+        # Language rule goes last so it isn't buried under the other blocks.
+        system += output_lang_rule(lang)
         user_prompt = build_rag_user_prompt(
-            question, context_blocks, max_chars=int(cfg["max_context_chars"])
+            question, context_blocks, max_chars=int(cfg["max_context_chars"]), lang=lang
         )
         messages = [LLMMessage(role="system", content=system)]
         if history:
@@ -190,14 +198,19 @@ class RAGService:
         question: str,
         *,
         history: Optional[List[LLMMessage]] = None,
-        agent_name: str = "智能客服小助手",
+        agent_name: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> Tuple[str, List[Dict]]:
-        messages, sources, from_model = await self._build_messages(question, history, agent_name)
+        lang = normalize_lang(lang)
+        messages, sources, from_model = await self._build_messages(
+            question, history, agent_name, lang
+        )
         s = self.settings()
         if not sources and not from_model:
             # Nothing retrieved and fallback is off — refuse without paying for
             # a round-trip that would only produce the canned reply anyway.
-            return RAG_NO_HIT_REPLY, []
+            # Never sees the LLM, so this must be a real translation.
+            return pick(NO_HIT_REPLY, lang), []
         # A model-knowledge answer isn't constrained by documents, so the low
         # anti-hallucination temperature doesn't apply.
         temp = s.llm.temperature if from_model else min(s.llm.temperature, 0.3)
@@ -209,7 +222,8 @@ class RAGService:
         question: str,
         *,
         history: Optional[List[LLMMessage]] = None,
-        agent_name: str = "智能客服小助手",
+        agent_name: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> AsyncIterator[Tuple[str, List[Dict] | None]]:
         """Yields ``(token, sources_or_None)``.
 
@@ -218,10 +232,16 @@ class RAGService:
         If retrieval finds nothing and ``rag.allow_model_knowledge`` is off, a
         single refusal event is emitted; when it's on, the model answers from
         its own knowledge and the sources list comes back empty.
+
+        ``lang`` pins the answer's language (see ``OUTPUT_LANG_RULE``) and picks
+        the translation of the canned refusal.
         """
-        messages, sources, from_model = await self._build_messages(question, history, agent_name)
+        lang = normalize_lang(lang)
+        messages, sources, from_model = await self._build_messages(
+            question, history, agent_name, lang
+        )
         if not sources and not from_model:
-            yield RAG_NO_HIT_REPLY, []
+            yield pick(NO_HIT_REPLY, lang), []
             return
         s = self.settings()
         temp = s.llm.temperature if from_model else min(s.llm.temperature, 0.3)
@@ -231,7 +251,7 @@ class RAGService:
             yield token, None
         if not yielded_any:
             # Empty stream — fall back to the canned refusal.
-            yield RAG_NO_HIT_REPLY, []
+            yield pick(NO_HIT_REPLY, lang), []
         yield "", sources  # terminator carrying sources
 
     async def aclose(self) -> None:

@@ -8,7 +8,7 @@
 
 ![status](https://img.shields.io/badge/status-working-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-36%20backend%20%2B%2017%20widget-brightgreen)
+![tests](https://img.shields.io/badge/tests-103%20backend%20%2B%2031%20widget%20%2B%2024%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **Repositories**
@@ -33,6 +33,7 @@
 - [Structure-aware chunking](#structure-aware-chunking)
 - [Answer policy: strict RAG or model knowledge](#answer-policy-strict-rag-or-model-knowledge)
 - [Embedding into your site](#embedding-into-your-site)
+- [Languages (auto-detected offline)](#languages-auto-detected-offline)
 - [API reference](#api-reference)
 - [Configuration](#configuration)
 - [FAQ](#faq)
@@ -161,6 +162,7 @@ Standard uvicorn works too: `uvicorn src.main:app --reload --port 8000`
 | **🪟 Embeddable widget** | Single-file JS, zero dependencies, no build step. Renders Markdown and makes links clickable |
 | **📲 Cross-platform** | Websites / WeChat mini-program `web-view` / Electron / Tauri / iOS / Android |
 | **⚙️ Browser-only config** | Models, vector store, RAG params, agent profile — all editable in the UI, effective immediately without a restart |
+| **🌐 Four languages, detected offline** | Simplified / Traditional Chinese, Japanese, English. **Region comes from the browser's time zone — no IP lookup, so it still works on an air-gapped intranet.** Switch by hand any time; the AI answers in whatever language is active |
 
 ---
 
@@ -179,11 +181,12 @@ Eight menu items on the left of `/admin/`:
 | 🪟 **Chat preview** | The real widget in an iframe — test RAG answers here |
 | 🌐 **Embed guide** | Three embedding methods, copy-paste ready |
 
-Three persistent tools sit in the top-right corner:
+Four persistent tools sit in the top-right corner:
 
 | Tool | Behaviour |
 |---|---|
 | 🟢 **Backend status** | Polls every 15s. Hover to see the full error when offline |
+| 🌐 **Language** | Switches the console between 简体中文 / 繁體中文 / 日本語 / English. Each option is labelled in its own script, so a visitor who can't read the current language can still find theirs |
 | ⬆︎ **Check for updates** | Compares the running version with the latest GitHub release; a red dot appears when one is available |
 | ☕ **Donate** | WeChat / Alipay / QQ QR codes |
 
@@ -247,7 +250,7 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter (structure-aware) · sse · hash · obfuscation
-│   │   └── tests/                    36 tests
+│   │   └── tests/                    103 tests
 │   ├── scripts/
 │   │   ├── init_db.py                create tables (one-click init covers this)
 │   │   ├── check_env.py              dependency/config self-check
@@ -255,13 +258,19 @@ intelligent-customer-service/
 │   │   └── ingest_retry.py           ← auto-retry ingestion for large corpora
 │   └── samples/                      sample knowledge doc
 ├── frontend/
+│   ├── shared/
+│   │   └── locale.js                 ← offline region detection (time zone first, language second)
 │   ├── admin/
 │   │   ├── index.html                admin console
-│   │   └── embed.html                standalone chat page (preview / iframe)
+│   │   ├── embed.html                standalone chat page (preview / iframe)
+│   │   ├── i18n.js                   ← catalogs for 4 languages (Simplified Chinese is the source, so it needs none)
+│   │   ├── i18n-check.mjs            ← catalog coverage check (fails on any missing translation)
+│   │   ├── mark-i18n.py              ← adds data-i18n markers to the HTML (re-runnable)
+│   │   └── selftest.mjs              ← language-switching self-test (24 assertions)
 │   ├── assets/                       icons, donate QR codes, screenshots
 │   └── widget/
 │       ├── customer-service.js       embeddable widget (zero deps)
-│       ├── selftest.mjs              ← 17 assertions in a real DOM
+│       ├── selftest.mjs              ← 31 assertions in a real DOM
 │       └── demo/                     embedding demos
 └── docs/
     ├── API.md · DEPLOYMENT.md · EMBED_GUIDE.md
@@ -456,14 +465,71 @@ Remember to whitelist the domain in the mini-program console.
 | `enableUpload` | `true` | Show the upload button |
 | `useServerConfig` | `true` | Pull agent profile from `/api/config` |
 | `sessionId` | `null` | Resume a previous session |
+| `lang` | `auto` | `auto` / `zh-CN` / `zh-TW` / `ja` / `en` — see [Languages](#languages-auto-detected-offline) |
 | `onReady` | `null` | Callback after init |
+| `onLangChange` | `null` | Callback after the visitor switches language |
 
 ```js
 CustomerService.open() / close() / toggle() / sendMessage(text) / destroy()
+CustomerService.setLang('ja') / getLang()
 ```
 
 See [docs/EMBED_GUIDE.md](docs/EMBED_GUIDE.md) for Electron / Tauri / iOS /
 Android / CSP details.
+
+---
+
+## Languages (auto-detected offline)
+
+Both the interface and the AI's answers support **简体中文 / 繁體中文 / 日本語 /
+English**. All four surfaces can switch: the admin console, the chat widget, the
+standalone `/embed` page, and the backend landing page.
+
+**How the default is chosen**: the browser's time zone decides the region; if the
+time zone is inconclusive, `navigator.languages` decides; with no signal at all,
+English.
+
+| Time zone | Default language |
+|---|---|
+| `Asia/Shanghai`, `Asia/Urumqi`, `Asia/Chongqing` | 简体中文 |
+| `Asia/Taipei`, `Asia/Hong_Kong`, `Asia/Macau` | 繁體中文 |
+| `Asia/Tokyo` | 日本語 |
+| anything else | English |
+
+**Why not IP geolocation**: on an intranet the client address is `10.x` or
+`192.168.x`, which carries no region information at all, and an offline
+deployment can't reach any online IP database either. Time zone and language
+preferences both come from the browser itself, so **detection works exactly the
+same with no internet and no route out of the LAN**.
+
+**Switching by hand**: the 🌐 button at the top right of the admin console and
+the chat window's header. The choice is stored in `localStorage` under
+`cs_lang` — one key shared by the console and the widget, so changing it in one
+place moves the other.
+
+**The language of the answers**: the active language is sent with every
+question. The knowledge base is still Chinese and not one line of retrieval
+logic changed — the tuned Chinese prompt is reused verbatim and an
+"answer in this language" directive is appended to it, with that directive
+itself *written in the target language* (a Japanese instruction written in
+Japanese holds up far better). For `zh-CN` the appended string is empty, so the
+prompt is **byte-identical** to the pre-i18n one.
+
+To force a language: pass `lang: 'ja'` to the widget, add `?lang=ja` to `/embed`
+or the console, or send `{"lang":"ja"}` to the API.
+
+```bash
+# All four checks must be green: 103 backend, 31 widget, 24 admin, plus catalog coverage
+cd backend && .venv/bin/pytest src/tests -q
+cd frontend/widget && npm i && node selftest.mjs
+cd frontend/admin && node selftest.mjs && node i18n-check.mjs
+```
+
+Changed some Chinese text in the console? `node i18n-check.mjs` tells you which
+entries lack a translation. A catalog key **is** the Chinese source text
+(`frontend/admin/i18n.js`), so Simplified Chinese needs no catalog, and a
+missing translation falls back to Chinese instead of showing a raw key. To add
+`data-i18n` markers to new HTML, run `python3 mark-i18n.py` (safe to re-run).
 
 ---
 
@@ -691,14 +757,21 @@ Python 3.14.5.
 ## Development
 
 ```bash
-# Backend: 36 tests
+# Backend: 103 tests
 cd backend
 python -m pytest src/tests/ -q
 
-# Widget self-test: 17 assertions, full SSE flow in a real DOM
+# Widget self-test: 31 assertions — full SSE flow in a real DOM, plus region detection
 cd frontend/widget
 npm install       # installs jsdom
 npm test
+
+# Admin console language switching: 24 assertions (borrows the jsdom the widget installed)
+cd frontend/admin
+node selftest.mjs
+
+# Catalog coverage: every Chinese string in the UI must have all three translations
+node i18n-check.mjs
 
 # Environment self-check
 cd backend && python scripts/check_env.py
@@ -708,6 +781,14 @@ cd backend && python scripts/check_env.py
 > catch things like a template literal terminated early by an inner backtick,
 > which breaks the whole widget at runtime. `npm test` executes the real
 > rendering path.
+>
+> Same logic for the admin console. `i18n-check.mjs` pulls msgids out of the
+> HTML with regexes, which only proves *the catalogs are complete* — it can't
+> prove the key the browser computes from `innerHTML` actually matches (one
+> stray space or HTML entity and the lookup misses), and it can't prove that
+> switching language twice still switches back. `selftest.mjs` loads the real
+> `index.html` in jsdom and runs the real `apply()`; both classes of bug were
+> caught by it, not by the regex check.
 
 ---
 
