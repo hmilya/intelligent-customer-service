@@ -188,21 +188,39 @@ python run.py --install          # 缺依赖时自动安装
 
 ## 效果预览
 
+**登录授权** —— 进入 `/admin/**` 的任何页面都要先登录，支持中 / 繁 / 日 / 英切换：
+
 <table>
 <tr>
-<td width="50%"><b>🤖 模型配置</b><br>15 项厂商预设，选厂商自动填 Base URL 和模型；带连接测试与维度探测</td>
-<td width="50%"><b>🔍 RAG 设置</b><br>回答策略开关、检索参数、切分策略，还能预览切分效果</td>
+<td width="50%"><b>🔐 登录页</b><br>默认账号 <code>admin / 123456</code>，登录后才能进入后台任意页面</td>
+<td width="50%"><b>👤 用户信息</b><br>改用户名、昵称、邮箱，以及登录密码</td>
 </tr>
 <tr>
+<td><img src="frontend/assets/ai_kefu_login.jpg" alt="管理后台登录页"></td>
+<td><img src="frontend/assets/ai_kefu_admin.png" alt="用户信息"></td>
+</tr>
+<tr>
+<td><b>📊 系统概览</b><br>当前模型、向量库、文档数一眼看全，附四步快速开始指引</td>
+<td><b>🤖 模型配置</b><br>15 项厂商预设，选厂商自动填 Base URL 和模型；带连接测试与维度探测</td>
+</tr>
+<tr>
+<td><img src="frontend/assets/ai_kefu_gailan.png" alt="系统概览"></td>
 <td><img src="frontend/assets/ai_kefu_model.png" alt="模型配置"></td>
-<td><img src="frontend/assets/ai_kefu_rag.png" alt="RAG 设置"></td>
 </tr>
 <tr>
+<td><b>🔍 RAG 设置</b><br>回答策略开关、检索参数、切分策略，还能预览切分效果</td>
 <td><b>🧠 向量库</b><br>Chroma / Qdrant / Milvus 三选一，各自参数按需显示</td>
+</tr>
+<tr>
+<td><img src="frontend/assets/ai_kefu_rag.png" alt="RAG 设置"></td>
+<td><img src="frontend/assets/ai_kefu_xl.png" alt="向量库配置"></td>
+</tr>
+<tr>
+<td><b>📄 知识文档</b><br>拖拽上传 txt / md / docx / xlsx / pdf，自动解析 → 切分 → 向量化 → 入库</td>
 <td><b>💬 客服信息</b><br>名称、头像、欢迎语、联系方式，改一次对所有已嵌入站点生效</td>
 </tr>
 <tr>
-<td><img src="frontend/assets/ai_kefu_xl.png" alt="向量库配置"></td>
+<td><img src="frontend/assets/ai_kefu_doc.png" alt="知识文档"></td>
 <td><img src="frontend/assets/ai_kefu_config.png" alt="客服信息"></td>
 </tr>
 <tr>

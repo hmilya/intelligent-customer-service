@@ -329,6 +329,9 @@
     '更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：':
       '更新前請先備份資料（<code>backend/data/</code> 存著設定和 API Key）。 在伺服器上執行：',
     '项目目录': '專案目錄',
+    '然后按你的部署方式重启后端，三选一：': '然後依你的部署方式重啟後端，三選一：',
+    '最后一种要自己写 docker-compose.prod.yml，模板见 docs/DEPLOYMENT.md':
+      '最後一種要自己寫 docker-compose.prod.yml，範本見 docs/DEPLOYMENT.md',
     '📋 复制命令': '📋 複製指令',
     '查看发布说明 ↗': '查看發布說明 ↗',
     '✓ 已复制': '✓ 已複製',
@@ -693,6 +696,9 @@
     '更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：':
       '更新する前にデータをバックアップしてください（<code>backend/data/</code> に設定と API Key が保存されています）。 サーバー上で次を実行します：',
     '项目目录': 'プロジェクトディレクトリ',
+    '然后按你的部署方式重启后端，三选一：': 'その後、デプロイ方式に合わせてバックエンドを再起動します（いずれか一つ）：',
+    '最后一种要自己写 docker-compose.prod.yml，模板见 docs/DEPLOYMENT.md':
+      '最後の方式は docker-compose.prod.yml を自分で用意する必要があります。テンプレートは docs/DEPLOYMENT.md を参照してください',
     '📋 复制命令': '📋 コマンドをコピー',
     '查看发布说明 ↗': 'リリースノートを見る ↗',
     '✓ 已复制': '✓ コピーしました',
@@ -1080,6 +1086,9 @@
     '更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：':
       'Back up your data before updating (<code>backend/data/</code> holds your configuration and API keys). Run this on the server:',
     '项目目录': 'Project directory',
+    '然后按你的部署方式重启后端，三选一：': 'Then restart the backend the way you deployed it (pick one):',
+    '最后一种要自己写 docker-compose.prod.yml，模板见 docs/DEPLOYMENT.md':
+      'The last one needs a docker-compose.prod.yml of your own; see docs/DEPLOYMENT.md for a template',
     '📋 复制命令': '📋 Copy Command',
     '查看发布说明 ↗': 'View release notes ↗',
     '✓ 已复制': '✓ Copied',

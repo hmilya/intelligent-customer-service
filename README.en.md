@@ -184,21 +184,39 @@ model names and vector-DB coordinates — which is why it is behind a login.
 
 ## Screenshots
 
+**Sign-in required** — every page under `/admin/**` is gated, with a ZH / ZH-TW / JA / EN switcher:
+
 <table>
 <tr>
-<td width="50%"><b>🤖 Model config</b><br>15 vendor presets; picking one fills in the base URL and model. Connection test and dimension detection included.</td>
-<td width="50%"><b>🔍 RAG settings</b><br>Answer-policy switch, retrieval parameters, chunking strategy — with a live chunking preview.</td>
+<td width="50%"><b>🔐 Sign-in page</b><br>Default credentials <code>admin / 123456</code>. No pages are accessible without logging in.</td>
+<td width="50%"><b>👤 Account info</b><br>Change username, display name, email, and password.</td>
 </tr>
 <tr>
+<td><img src="frontend/assets/ai_kefu_login.jpg" alt="Admin console sign-in page"></td>
+<td><img src="frontend/assets/ai_kefu_admin.png" alt="Account info"></td>
+</tr>
+<tr>
+<td><b>📊 Overview</b><br>Current model, vector store and document count at a glance, plus a four-step quick start.</td>
+<td><b>🤖 Model config</b><br>15 vendor presets; picking one fills in the base URL and model. Connection test and dimension detection included.</td>
+</tr>
+<tr>
+<td><img src="frontend/assets/ai_kefu_gailan.png" alt="System overview"></td>
 <td><img src="frontend/assets/ai_kefu_model.png" alt="Model configuration"></td>
-<td><img src="frontend/assets/ai_kefu_rag.png" alt="RAG settings"></td>
 </tr>
 <tr>
+<td><b>🔍 RAG settings</b><br>Answer-policy switch, retrieval parameters, chunking strategy — with a live chunking preview.</td>
 <td><b>🧠 Vector store</b><br>Chroma / Qdrant / Milvus, with only the relevant fields shown.</td>
+</tr>
+<tr>
+<td><img src="frontend/assets/ai_kefu_rag.png" alt="RAG settings"></td>
+<td><img src="frontend/assets/ai_kefu_xl.png" alt="Vector store configuration"></td>
+</tr>
+<tr>
+<td><b>📄 Knowledge base</b><br>Drag in txt / md / docx / xlsx / pdf — parsed, chunked, embedded and indexed automatically.</td>
 <td><b>💬 Agent profile</b><br>Name, avatar, greeting, contact details — set once, applies to every embedded site.</td>
 </tr>
 <tr>
-<td><img src="frontend/assets/ai_kefu_xl.png" alt="Vector store configuration"></td>
+<td><img src="frontend/assets/ai_kefu_doc.png" alt="Knowledge base"></td>
 <td><img src="frontend/assets/ai_kefu_config.png" alt="Agent profile"></td>
 </tr>
 <tr>

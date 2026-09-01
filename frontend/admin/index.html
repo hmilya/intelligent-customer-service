@@ -2770,8 +2770,11 @@ function renderUpdateModal(r) {
       <div class="upd-cmd">cd &lt;${T('项目目录')}&gt;
 git pull
 cd backend &amp;&amp; pip install -r requirements.txt
-# Docker: docker compose -f docker-compose.prod.yml up -d --build
-# systemd: sudo systemctl restart ics</div>
+# ${T('然后按你的部署方式重启后端，三选一：')}
+#   python run.py
+#   sudo systemctl restart ics
+#   docker compose -f docker-compose.prod.yml up -d --build
+# ${T('最后一种要自己写 docker-compose.prod.yml，模板见 docs/DEPLOYMENT.md')}</div>
       <div class="btn-group" style="margin-top:14px;">
         <button class="btn btn-secondary" id="btnCopyUpdCmd">${T('📋 复制命令')}</button>
         ${r.release_url ? `<a class="btn btn-primary" href="${esc(r.release_url)}"
