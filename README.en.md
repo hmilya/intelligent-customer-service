@@ -731,7 +731,7 @@ normal use. This table is for deployment scripts and CI.
 | App | `APP_ENV` / `APP_DEBUG` / `APP_HOST` / `APP_PORT` | `development` / `true` / `0.0.0.0` / `8000` |
 | | `APP_SECRET_KEY` | `change-me-in-production` (**signs login tokens — change it**) |
 | | `UPLOAD_DIR` / `MAX_UPLOAD_MB` | `./uploads` / `20` |
-| | `APP_GITHUB_REPO` / `APP_VERSION` | empty / `0.1.0` (update check) |
+| | `APP_GITHUB_REPO` / `APP_VERSION` | `vfaner/intelligent-customer-service` / read from `pyproject.toml` (update check; you normally shouldn't set `APP_VERSION`) |
 | Auth | `AUTH_ENABLED` | `true` (`false` disables every guard) |
 | | `AUTH_TOKEN_TTL_HOURS` | `168` (7 days) |
 | | `AUTH_COOKIE_NAME` | `cs_admin_token` |

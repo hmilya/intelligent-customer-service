@@ -524,3 +524,47 @@ async def test_version_endpoint_reports_repo_when_configured(monkeypatch) -> Non
     assert r["repo"] == "owner/name"
     assert r["current"]
     assert isinstance(r["has_update"], bool)
+
+
+def test_version_comes_from_pyproject() -> None:
+    """The running version must be the one in pyproject.toml, not a copy.
+
+    Regression guard. It used to be a hardcoded default that only APP_VERSION
+    in .env could override — and .env is gitignored, so `git pull` never
+    updated it. The update check then compared a stale number against the
+    repo's latest tag and permanently claimed an update was available on an
+    already-current checkout. If someone reintroduces a second place to write
+    the version, this goes red.
+
+    The displayed form carries a `v` to match the git tags; pyproject.toml
+    keeps the bare PEP 440 number, since a leading `v` there is non-canonical
+    and would be stripped when building a wheel.
+    """
+    import tomllib
+    from pathlib import Path
+
+    from src.core.config import get_settings
+
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    with pyproject.open("rb") as fh:
+        declared = tomllib.load(fh)["project"]["version"]
+
+    assert not declared.lower().startswith("v"), "pyproject.toml 里不要写 v 前缀"
+    assert get_settings().app.version == f"v{declared}"
+
+
+def test_matching_version_reports_no_update() -> None:
+    """current == latest tag must mean "up to date", whatever the spelling.
+
+    Tags are written `v1.2.3` while PEP 440 versions are `1.2.3`; if the
+    comparison ever stops normalising that away, every release would announce
+    itself as an available update.
+    """
+    from src.api.admin import _parse_version
+    from src.core.config import get_settings
+
+    current = get_settings().app.version          # "v1.2.3"
+    bare = current.lstrip("vV")                   # "1.2.3"
+    assert _parse_version(current) == _parse_version(bare)
+    assert not _parse_version(current) > _parse_version(bare)
+    assert not _parse_version(bare) > _parse_version(current)

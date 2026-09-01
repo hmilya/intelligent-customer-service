@@ -384,6 +384,65 @@ const checks = [
   }],
 ];
 
+/* ═══ Release Notes 的 Markdown 渲染 ═══════════════════════════
+   「检测更新」弹窗把 GitHub Release 的正文渲染成 HTML。正文是远端内容，
+   写 Release 的人能往里塞任意 HTML，所以 renderMarkdown() 的实现约定是
+   **先整体转义、再在转义后的文本上做替换** —— 页面上真正生效的标签只能
+   由它自己生成。下面的用例主要就是钉住这条约定：哪天有人为了「支持一下
+   原生 HTML」把顺序调过来，这里必须红。
+
+   renderMarkdown 定义在 index.html 的内联 <script> 里，而本脚本以
+   runScripts:'outside-only' 加载页面（页面脚本一跑就会 fetch /api/config
+   然后失败），所以把那段源码切出来单独求值 —— 测的仍是线上那一份。 */
+const MD_FROM = 'function escapeHtml(s)';
+const MD_TO = '/* ----------- Boot ----------- */';
+const mdA = html.indexOf(MD_FROM), mdB = html.indexOf(MD_TO);
+if (mdA < 0 || mdB < mdA) {
+  console.error('切不出 renderMarkdown —— index.html 里的锚点注释被改了？');
+  process.exit(1);
+}
+const renderMarkdown = new Function(html.slice(mdA, mdB) + '\nreturn renderMarkdown;')();
+
+const md = (name, src, fn) => checks.push(['md: ' + name, () => {
+  const out = renderMarkdown(src);
+  return fn(out) === true ? true : '得到 ' + JSON.stringify(out);
+}]);
+const lacks = (...ss) => o => ss.every(s => !o.includes(s));
+const holds = (...ss) => o => ss.every(s => o.includes(s));
+
+// —— 安全：远端正文里的 HTML 必须只以字面量出现 ——
+md('script 标签不生效', '<script>alert(1)</script>', lacks('<script'));
+md('img onerror 不生效', '<img src=x onerror=alert(1)>', lacks('<img'));
+md('javascript: 链接不生成 <a>', '[点我](javascript:alert(1))', lacks('<a '));
+md('data: 链接不生成 <a>', '[x](data:text/html,y)', lacks('<a '));
+md('链接文本挡不住属性闭合', '[x](https://a.cn/"onmouseover="alert(1))',
+  lacks('onmouseover="alert'));
+md('http 链接照常放行', '[文档](https://a.cn/b?x=1&y=2)',
+  holds('<a href="https://a.cn/b?x=1&amp;y=2"', 'rel="noopener noreferrer"'));
+// 行内代码用 <cN> 占位；正文已转义过，伪造不出 < ，这条钉住它
+md('占位符无法从正文伪造', '正文写 <c0> 再来个 `真代码`',
+  o => holds('&lt;c0&gt;', '<code>真代码</code>')(o) && lacks('undefined')(o));
+
+// —— 块级 ——
+md('## 降到 h4（别抢弹窗标题层级）', '## 新功能', holds('<h4>新功能</h4>'));
+md('列表 + 缩进续行合并', '- 第一行\n  第二行\n- 下一项',
+  holds('<li>第一行 第二行</li>', '<li>下一项</li>'));
+md('表格', '| A | B |\n|---|---|\n| 1 | 2 |',
+  holds('<th>A</th>', '<td>1</td>', '<td>2</td>'));
+// 引用要匹配 &gt; 而不是 > —— 转义发生在块解析之前，写成 > 会永远不匹配
+md('引用（转义后仍能识别）', '> 注意事项', holds('<blockquote>注意事项</blockquote>'));
+md('代码块内不再解析 markdown', '```\n- 不是列表 **不加粗**\n```',
+  lacks('<li>', '<strong>'));
+// 后端把正文截断到 1500 字（admin.py），围栏可能没有收尾
+md('未闭合代码块（正文被截断）', '```bash\ngit pull\ncd backend',
+  holds('<pre><code>git pull\ncd backend</code></pre>'));
+
+// —— 不该误伤的普通文本 ——
+md('中文里的孤立数字不当占位符', '共 3 个文件，另有 0 处告警',
+  o => holds('共 3 个文件')(o) && lacks('<code>', 'undefined')(o));
+md('大写下划线变量名不斜体', 'APP_GITHUB_REPO 和 APP_VERSION', lacks('<em>'));
+md('空正文不报错', '', o => o === '');
+
 let pass = 0;
 const fails = [];
 for (const [name, fn] of checks) {

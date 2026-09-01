@@ -245,7 +245,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title=settings.app.name,
-        version="0.1.0",
+        version=settings.app.version,
         description="Document-aware multi-model customer service platform with RAG.",
         debug=settings.app.debug,
         lifespan=lifespan,

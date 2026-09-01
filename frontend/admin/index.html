@@ -362,9 +362,43 @@
   .upd-row .v { font-weight: 600; }
   .upd-note {
     background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
-    padding: 10px 12px; margin-top: 12px;
+    padding: 10px 14px; margin-top: 12px;
     font-size: 12.5px; line-height: 1.7; color: #374151;
-    max-height: 180px; overflow-y: auto; white-space: pre-wrap;
+    max-height: 260px; overflow-y: auto;
+    overflow-wrap: break-word;   /* Release 里常有长 URL，别把弹窗撑宽 */
+  }
+  /* ─── Release 正文的 Markdown 样式 ─────────────────────
+     正文由 renderMarkdown() 生成，标签种类是固定的那几种。
+     首尾元素清掉外边距，否则和容器 padding 叠出一圈空白。 */
+  .upd-note > :first-child { margin-top: 0; }
+  .upd-note > :last-child { margin-bottom: 0; }
+  .upd-note h4, .upd-note h5, .upd-note h6 {
+    margin: 14px 0 6px; font-size: 13px; font-weight: 700; color: #111827;
+  }
+  .upd-note p { margin: 6px 0; }
+  .upd-note ul, .upd-note ol { margin: 6px 0; padding-left: 20px; }
+  .upd-note li { margin: 2px 0; }
+  .upd-note code {
+    background: #eef1f5; border-radius: 4px; padding: 1px 5px;
+    font-size: 11.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .upd-note pre {
+    background: #1f2937; color: #d6deeb; border-radius: 6px;
+    padding: 10px 12px; margin: 8px 0; overflow-x: auto;
+    font-size: 11.5px; line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .upd-note pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  .upd-note a { color: #2563eb; }
+  .upd-note hr { border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+  .upd-note table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 11.5px; }
+  .upd-note th, .upd-note td {
+    border: 1px solid #e5e7eb; padding: 4px 8px; text-align: left; vertical-align: top;
+  }
+  .upd-note th { background: #f3f4f6; font-weight: 600; }
+  .upd-note blockquote {
+    margin: 8px 0; padding: 2px 0 2px 10px;
+    border-left: 3px solid #d1d5db; color: #6b7280;
   }
   .upd-cmd {
     background: #1f2937; color: #d6deeb; border-radius: 8px;
@@ -2496,6 +2530,137 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+/* ==========================================================================
+   极简 Markdown 渲染（只服务于「检测更新」弹窗里的 Release 正文）
+   --------------------------------------------------------------------------
+   ⚠️ 安全前提：正文是 GitHub Release 的 body，写 Release 的人可以在里面放
+   任意 HTML —— GitHub 自己会渲染 <img onerror=...> 这类东西。所以这里的
+   顺序不能反：**先整体转义，再在转义后的文本上做替换**。这样正文里带的
+   HTML 只会以字面量显示出来，页面上真正生效的标签全部由本函数生成。
+   先解析后转义 = XSS，先转义后解析 = 安全。
+
+   刻意不引第三方库（marked/markdown-it）：本项目前端零依赖、要能离线部署，
+   为一个弹窗塞进几十 KB 不划算。支持的子集按 Release Notes 的实际写法挑的：
+   标题、列表、代码块/行内代码、粗斜体、链接、表格、引用、分隔线。
+   后端会把正文截断到 1500 字（admin.py），所以每个块级分支都得容忍
+   「读到一半没有结束标记」的情况。
+   ========================================================================== */
+
+/* 行内元素。传进来的 s 必须已经转义过。 */
+function mdInline(s) {
+  // 代码片段先摘出来占位：`a **b**` 里的 ** 不该被当成加粗。
+  // 占位符借用 < ：正文已经转义过，里面绝不可能再出现 < ，所以伪造不出来。
+  const spans = [];
+  s = s.replace(/`([^`\n]+)`/g, (_, c) => '<c' + (spans.push(c) - 1) + '>');
+  s = s
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(])_([^_\n]+)_/g, '$1<em>$2</em>')
+    // 只放行 http(s)，挡掉 javascript: 之类的伪协议。href 已被转义，
+    // 里面不可能再出现能闭合属性的引号。
+    .replace(/\[([^\]\n]*)\]\(([^\s)]+)\)/g, (m, txt, href) =>
+      /^https?:\/\//i.test(href)
+        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${txt}</a>`
+        : m);
+  return s.replace(/<c(\d+)>/g, (_, i) => `<code>${spans[i]}</code>`);
+}
+
+function renderMarkdown(src) {
+  const lines = escapeHtml(String(src == null ? '' : src))
+    .replace(/\r\n?/g, '\n').split('\n');
+  // 表格分隔行：|---|:--:| 这种。必须含 - 和 |，否则空表格行也会被误判。
+  const isTableSep = s => s.includes('|') && s.includes('-') && /^[\s|:-]+$/.test(s);
+  // 段落/列表项遇到这些就该断开，不能继续吞下一行
+  const isBlockStart = s =>
+    /^\s*(#{1,6}\s|```|&gt;\s?|[-*+]\s|\d+\.\s)/.test(s) ||
+    /^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(s);
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (!line.trim()) { i++; continue; }
+
+    // 代码块。没有结束 ``` 时（正文被截断）循环自然停在末尾。
+    if (/^\s*```/.test(line)) {
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
+      i++;
+      out.push(`<pre><code>${buf.join('\n')}</code></pre>`);
+      continue;
+    }
+
+    // 分隔线。放在表格判断之前也无妨：--- 不含 |。
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+
+    // 标题。## 映射到 h4 起步 —— 弹窗里 h2 会大得离谱，
+    // 而且后台正文本身不该抢 <h3> 弹窗标题的层级。
+    const h = /^\s*(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      const lv = Math.min(h[1].length + 2, 6);
+      out.push(`<h${lv}>${mdInline(h[2].trim())}</h${lv}>`);
+      i++; continue;
+    }
+
+    // 表格：本行有 |，且下一行是分隔行
+    if (line.includes('|') && isTableSep(lines[i + 1] || '')) {
+      const cells = row => row.trim().replace(/^\|/, '').replace(/\|$/, '')
+        .split('|').map(c => mdInline(c.trim()));
+      let html = '<table><thead><tr>'
+        + cells(line).map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+      i += 2;
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+        html += '<tr>' + cells(lines[i++]).map(c => `<td>${c}</td>`).join('') + '</tr>';
+      }
+      out.push(html + '</tbody></table>');
+      continue;
+    }
+
+    // 引用。此处匹配的是 &gt; 而不是 > —— 正文在进入块解析之前
+    // 已经整体转义过，> 早就不是 > 了。这是「先转义后解析」的代价，
+    // 忘了就会得到一个永远不匹配的分支。
+    if (/^\s*&gt;/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^\s*&gt;/.test(lines[i])) {
+        buf.push(lines[i++].replace(/^\s*&gt;\s?/, ''));
+      }
+      out.push(`<blockquote>${mdInline(buf.join(' '))}</blockquote>`);
+      continue;
+    }
+
+    // 列表。缩进的续行并进上一项 —— Release Notes 里长条目换行很常见。
+    if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+      const tag = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
+      const items = [];
+      while (i < lines.length) {
+        const m = /^\s*(?:[-*+]|\d+\.)\s+(.*)$/.exec(lines[i]);
+        if (m) { items.push(m[1]); i++; }
+        else if (items.length && lines[i].trim()
+                 && !isBlockStart(lines[i]) && !isTableSep(lines[i])) {
+          items[items.length - 1] += ' ' + lines[i].trim(); i++;
+        } else break;
+      }
+      out.push(`<${tag}>${items.map(t => `<li>${mdInline(t)}</li>`).join('')}</${tag}>`);
+      continue;
+    }
+
+    // 普通段落
+    const buf = [];
+    while (i < lines.length && lines[i].trim()
+           && !isBlockStart(lines[i]) && !isTableSep(lines[i] || '')
+           && !(lines[i].includes('|') && isTableSep(lines[i + 1] || ''))) {
+      buf.push(lines[i++].trim());
+    }
+    // buf 为空说明上面的守卫全都不成立却又没前进，兜底推进一行防死循环
+    if (!buf.length) { buf.push(lines[i++].trim()); }
+    out.push(`<p>${mdInline(buf.join(' '))}</p>`);
+  }
+
+  return out.join('');
+}
+
 /* ----------- Boot ----------- */
 /* ==========================================================================
    顶部工具：检测更新 / 打赏 / GitHub
@@ -2598,7 +2763,7 @@ function renderUpdateModal(r) {
       <div class="upd-row"><span class="k">${T('当前版本')}</span><span class="v">${esc(r.current)}</span></div>
       <div class="upd-row"><span class="k">${T('最新版本')}</span>
         <span class="v" style="color:#059669;">${esc(r.latest)} 🎉</span></div>
-      ${r.notes ? `<div class="upd-note">${esc(r.notes)}</div>` : ''}
+      ${r.notes ? `<div class="upd-note scroll-y">${renderMarkdown(r.notes)}</div>` : ''}
       <p class="modal-desc" style="margin-top:14px;">
         ${T('更新前先备份数据（<code>backend/data/</code> 存着配置和 API Key）。 在服务器上执行：')}
       </p>

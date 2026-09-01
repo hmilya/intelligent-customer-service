@@ -6,12 +6,53 @@ needs configuration.
 """
 from __future__ import annotations
 
+import tomllib
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, List, Literal, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+def _version_from_pyproject() -> str:
+    """Read the running version out of backend/pyproject.toml, as ``vX.Y.Z``.
+
+    The version describes the *code*, not the deployment, so it must travel
+    with the code. It used to default to a hardcoded string that only
+    APP_VERSION in .env could override — and .env is gitignored, so a fresh
+    ``git pull`` never changed it. GET /api/admin/version then compared a
+    stale number against the repo's latest tag and reported an update that
+    was already installed, forever. Reading pyproject.toml makes bumping the
+    version a one-line change that ships with the release.
+
+    The ``v`` is added here rather than stored in pyproject.toml: that field
+    is a PEP 440 package version, where a leading ``v`` is non-canonical and
+    gets stripped when building a wheel — the two spellings would drift apart
+    again. Git tags are ``vX.Y.Z``, and the update dialog shows current and
+    latest side by side, so one consistent spelling reaches the UI from here.
+    Comparison is unaffected either way: _parse_version() ignores the prefix.
+
+    Falls back to "0.0.0" when the file isn't there (installed as a wheel, or
+    a partial copy): an unknown version should look old rather than break boot.
+    """
+    raw = ""
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    try:
+        with pyproject.open("rb") as fh:
+            raw = str(tomllib.load(fh)["project"]["version"])
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError):
+        # No source tree next to us — try installed package metadata instead.
+        try:
+            from importlib.metadata import PackageNotFoundError
+            from importlib.metadata import version as _pkg_version
+
+            raw = _pkg_version("intelligent-customer-service")
+        except (PackageNotFoundError, ImportError):
+            return "0.0.0"
+
+    raw = raw.strip()
+    return raw if raw.lower().startswith("v") else f"v{raw}"
 
 
 class AppSettings(BaseSettings):
@@ -24,8 +65,10 @@ class AppSettings(BaseSettings):
     upload_dir: str = "./uploads"
     max_upload_mb: int = 20
     # Current release, compared against the repo's latest tag by
-    # GET /api/admin/version. Keep in sync with pyproject.toml.
-    version: str = "0.1.0"
+    # GET /api/admin/version. Single source of truth is pyproject.toml —
+    # bump it there and nowhere else. APP_VERSION can still override it for
+    # odd deployments, but you shouldn't need to set it.
+    version: str = Field(default_factory=_version_from_pyproject)
     # "owner/repo" on GitHub, used by GET /api/admin/version. Set to empty to
     # disable the update check — the button then explains it's unconfigured
     # instead of failing silently.

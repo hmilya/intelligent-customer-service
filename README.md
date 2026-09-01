@@ -687,7 +687,7 @@ event: error     → 出错，{message}
 |---|---|---|
 | 应用 | `APP_ENV` / `APP_DEBUG` / `APP_HOST` / `APP_PORT` | `development` / `true` / `0.0.0.0` / `8000` |
 | | `UPLOAD_DIR` / `MAX_UPLOAD_MB` | `./uploads` / `20` |
-| | `APP_GITHUB_REPO` / `APP_VERSION` | 空 / `0.1.0`（检测更新用） |
+| | `APP_GITHUB_REPO` / `APP_VERSION` | `vfaner/intelligent-customer-service` / 读自 `pyproject.toml`（检测更新用，一般无需设置 `APP_VERSION`） |
 | 数据库 | `DATABASE_URL` | `sqlite+aiosqlite:///./data/app.db` |
 | Redis | `REDIS_URL` / `REDIS_ENABLED` | 空 / `false` |
 | 向量库 | `VECTOR_DB_PROVIDER` | `chroma`（`chroma`\|`qdrant`\|`milvus`） |
