@@ -3,8 +3,8 @@
  * Admin console i18n coverage check.
  *
  * Extracts every msgid the markup actually asks for (data-i18n textContent,
- * data-i18n-html innerHTML, data-i18n-attr attribute values) and asserts each
- * one has an entry in all three catalogs in i18n.js.
+ * data-i18n-html innerHTML, data-i18n-attr attribute values) across every admin
+ * page and asserts each one has an entry in all three catalogs in i18n.js.
  *
  * Why this exists: the msgid *is* the Chinese source text, so editing a label
  * in index.html silently orphans its translations — the page keeps working and
@@ -21,7 +21,11 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(here, 'index.html'), 'utf8');
+// login.html is scanned alongside the console: it is a standalone page with its
+// own inline script, so its labels and error toasts would otherwise be the one
+// corner of the admin UI where an untranslated string goes unnoticed.
+const PAGES = ['index.html', 'login.html'];
+const html = PAGES.map((f) => readFileSync(join(here, f), 'utf8')).join('\n');
 const norm = (s) => s.replace(/\s+/g, ' ').trim();
 
 /**

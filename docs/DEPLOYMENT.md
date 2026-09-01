@@ -54,8 +54,8 @@ LLM 推理在厂商侧，所以对本机 CPU/GPU 无要求。
 | 6333 | Qdrant | ❌ 仅内网 |
 | 19530 | Milvus | ❌ 仅内网 |
 
-**只有 Nginx 该暴露在公网。** 应用直接绑 `0.0.0.0:8000` 对外，等于把没有鉴权的管理后台
-和 API Key 配置页开放给所有人。
+**只有 Nginx 该暴露在公网。** 管理后台自带登录，但应用直接绑 `0.0.0.0:8000` 对外，
+就把登录页、以及数据库和向量库的端口一起摆到了公网上 —— 少一层是一层。
 
 ---
 
@@ -210,6 +210,7 @@ nano backend/.env
 ```env
 APP_ENV=production
 APP_DEBUG=false
+# 后台登录令牌用它签名，务必换掉
 APP_SECRET_KEY=<用下面的命令生成>
 
 DATABASE_URL=mysql+aiomysql://cs_user:<你的密码>@mysql:3306/cs_db
@@ -444,8 +445,31 @@ sudo systemctl reload nginx
 
 ### 保护管理后台
 
-管理后台**没有内置登录**。暴露在公网等于任何人都能改你的模型配置、看到脱敏的 Key、
-删你的知识库。三种做法任选：
+管理后台**自带登录**：访问 `/admin/**` 会跳转到登录页，模型配置、RAG、向量库、
+客服配置、知识文档这些接口也都要求带管理员令牌。聊天和会话接口不需要，因为嵌在
+别人网站上的客服组件没有凭据可给。
+
+所以上线时**必须做的两件事**：
+
+```bash
+# 1. 换掉签名密钥 —— 保持默认等于任何读过本仓库的人都能伪造管理员令牌
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+# 把结果写进 .env 的 APP_SECRET_KEY
+
+# 2. 登录后立刻在后台「用户信息」里改掉默认密码 admin / 123456
+```
+
+`APP_ENV=production` 且 `APP_SECRET_KEY` 还是默认值时，后端启动会打一条警告；
+默认密码没改时，后台顶部会一直挂着提醒横幅。两个都别忽略。
+
+忘了密码没有邮件找回流程（本项目不配置邮件），在服务器上执行：
+
+```bash
+cd backend && python -m scripts.reset_admin_password
+```
+
+下面几种做法是**额外的一层**，不是替代品 —— 内置登录挡住的是「谁能改配置」，
+这几种挡的是「谁能碰到这个页面」，公网部署建议至少选一种：
 
 **① 只允许特定 IP**（最简单）
 
@@ -474,7 +498,7 @@ location /admin/ {
 }
 ```
 
-⚠️ 同时也要保护写接口，否则绕过页面直接调 API 一样能改配置：
+同样给写接口加一层（内置鉴权已经挡住了，这里是双保险）：
 
 ```nginx
 location ~ ^/api/(config|admin|documents|models)(/|$) {
@@ -494,6 +518,9 @@ ssh -L 8000:127.0.0.1:8000 user@你的服务器
 ```
 
 这样公网只能访问聊天接口和组件，管理后台完全不暴露。**推荐这个。**
+
+⚠️ 无论选哪种，都不要为了图方便设 `AUTH_ENABLED=false`。那会关掉全部鉴权，
+只适合内网里用完就删的临时演示。
 
 ---
 
@@ -626,17 +653,30 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://你的域名/
 curl -sS -o /dev/null -w "%{http_code}\n" https://你的域名/widget/customer-service.js
 # 期望：200
 
-# 4. 模型连通（先在管理后台填好 Key）
+# 4. 后台确实要求登录了
+curl -sS -o /dev/null -w "%{http_code}\n" https://你的域名/api/config
+# 期望：401（不是 200！200 说明鉴权没生效）
+
+# 5. 能登录，并拿到令牌备后面用
+TOKEN=$(curl -sS -X POST https://你的域名/api/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"username":"admin","password":"你改过的密码"}' \
+     | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+echo "${TOKEN:0:12}…"
+
+# 6. 模型连通（先在管理后台填好 Key）
 curl -sS -X POST https://你的域名/api/models/test \
+     -H "Authorization: Bearer $TOKEN" \
      -H 'Content-Type: application/json' -d '{}'
 # 期望：{"ok":true,"message":"测试成功 - 模型回复: OK"}
 
-# 5. Embedding 连通 + 维度确认
+# 7. Embedding 连通 + 维度确认
 curl -sS -X POST https://你的域名/api/models/test-embedding \
+     -H "Authorization: Bearer $TOKEN" \
      -H 'Content-Type: application/json' -d '{}'
 # 期望：{"ok":true,"dim":1024,...}
 
-# 6. SSE 真的是流式（关键）
+# 8. SSE 真的是流式（关键）—— 注意这个接口不需要令牌，组件要能匿名调用
 curl -N -sS -X POST https://你的域名/api/chat/stream \
      -H 'Content-Type: application/json' -d '{"message":"你好"}'
 # 期望：token 事件逐条出现。若等很久才一次性全部吐出 → Nginx 缓冲没关
@@ -644,7 +684,9 @@ curl -N -sS -X POST https://你的域名/api/chat/stream \
 
 再打开管理后台，逐项确认：
 
-- [ ] 顶部没有黄色未初始化横幅
+- [ ] 访问 `/admin/` 会跳到登录页，而不是直接进去
+- [ ] 用新密码能登录，旧的默认密码已经不好使
+- [ ] 顶部没有黄色未初始化横幅，也没有「请尽快修改默认密码」横幅
 - [ ] 「模型配置」测试连接通过
 - [ ] 「向量模型」测试并探测维度通过，维度与向量库一致
 - [ ] 「知识文档」上传一个小文件，状态变成 **就绪**、分片数 > 0
@@ -657,10 +699,13 @@ curl -N -sS -X POST https://你的域名/api/chat/stream \
 
 上线前逐条过：
 
-- [ ] **`APP_SECRET_KEY` 换成随机值**（`python3 -c "import secrets;print(secrets.token_urlsafe(48))"`）
+- [ ] **`APP_SECRET_KEY` 换成随机值**（`python3 -c "import secrets;print(secrets.token_urlsafe(48))"`）——
+      后台登录令牌用它签名，保持默认等于任何人都能伪造管理员身份
+- [ ] **改掉后台默认密码 `admin` / `123456`**（登录后在「用户信息」里改）
+- [ ] **确认 `AUTH_ENABLED` 没被设成 `false`**
 - [ ] **`APP_ENV=production` 且 `APP_DEBUG=false`** —— debug 模式会在报错时泄露栈信息
 - [ ] **`CORS_ORIGINS` 改成具体域名**，不要留 `*`
-- [ ] **管理后台加访问控制**（见上面三种方案）
+- [ ] **管理后台再加一层访问控制**（内置登录之外，见上面三种方案）
 - [ ] **应用只监听 `127.0.0.1`**，公网入口只有 Nginx
 - [ ] **数据库/Redis/向量库不映射到公网端口**（用 `127.0.0.1:端口:端口` 形式）
 - [ ] **启用 HTTPS**

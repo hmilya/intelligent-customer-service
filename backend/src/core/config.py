@@ -116,6 +116,33 @@ class RAGSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="RAG_", extra="ignore")
 
 
+class AuthSettings(BaseSettings):
+    """Admin-console login.
+
+    ``enabled=False`` turns every guard off — intended for a throwaway demo on a
+    private network, never for anything reachable from the internet. It exists
+    because "I locked myself out of my own laptop install" is otherwise a
+    database-editing exercise.
+
+    Tokens are signed with ``APP_SECRET_KEY``. Leave that at its default and
+    anyone who reads this repo can forge one, so ``main.py`` logs a warning at
+    boot when the default is still in place outside development.
+    """
+
+    enabled: bool = True
+    # 7 days. Long enough that day-to-day use never hits a login form; short
+    # enough that a stolen token isn't valid forever.
+    token_ttl_hours: int = 168
+    cookie_name: str = "cs_admin_token"
+    # Seeded on first boot when the user table is empty. Changing these later
+    # does NOT rename or re-password an existing account — use the admin
+    # console, or scripts/reset_admin_password.py.
+    default_username: str = "admin"
+    default_password: str = "123456"
+
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="AUTH_", extra="ignore")
+
+
 class CORSSettings(BaseSettings):
     # NoDecode: leave the raw env string alone so we can split on comma below.
     origins: Annotated[List[str], NoDecode] = Field(default_factory=lambda: ["*"])
@@ -157,6 +184,7 @@ class Settings:
         self.llm = LLMSettings()
         self.embedding = EmbeddingSettings()
         self.rag = RAGSettings()
+        self.auth = AuthSettings()
         self.cors = CORSSettings()
 
     # Convenience pass-throughs (used a lot in services)

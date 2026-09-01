@@ -119,6 +119,61 @@
   .conn-status.err .dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
   .conn-status.checking .dot { background: #f59e0b; animation: pulse 1s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  /* ─── 当前账号：圆形头像 + 悬停/点击展开的下拉 ───────────
+     顶栏最右侧。工具按钮都是「图标 + 文字」的胶囊，账号这块反而
+     只留一个圆头像：它不是功能入口，是身份标识，缩成一个圆点最
+     不抢戏，展开后才是三个动作。 */
+  .user-menu { position: relative; display: inline-flex; }
+  .user-avatar {
+    width: 34px; height: 34px; padding: 0; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%; border: 1px solid #bfdbfe;
+    background: #3b82f6; color: #fff;
+    font-size: 14px; font-weight: 600; font-family: inherit; line-height: 1;
+    cursor: pointer; transition: box-shadow .15s, background .15s;
+  }
+  .user-avatar:hover { background: #2563eb; }
+  .user-menu.open .user-avatar { box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+  .user-menu-panel {
+    display: none; position: absolute; right: 0; top: calc(100% + 8px);
+    min-width: 190px; padding: 6px; z-index: 60;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.14);
+    text-align: left;
+  }
+  .user-menu.open .user-menu-panel { display: block; }
+  /* 头像和面板之间那 8px 空隙没有元素，鼠标划过去会触发 mouseleave。
+     这条透明「桥」把空隙补上，移动过程中指针始终在菜单内。 */
+  .user-menu-panel::before {
+    content: ''; position: absolute; left: 0; right: 0; top: -8px; height: 8px;
+  }
+  .user-menu-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px 10px; margin-bottom: 4px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .user-menu-head .user-avatar { width: 32px; height: 32px; cursor: default; }
+  .user-menu-head .user-avatar:hover { background: #3b82f6; }
+  .user-menu-id { min-width: 0; }
+  .user-menu-id strong {
+    display: block; font-size: 13px; color: #111827;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;
+  }
+  .user-menu-id span {
+    display: block; font-size: 12px; color: #6b7280;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;
+  }
+  .user-menu-panel button {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; text-align: left; cursor: pointer;
+    padding: 8px 10px; font-size: 13px; font-family: inherit; color: #374151;
+    background: none; border: 0; border-radius: 6px;
+  }
+  .user-menu-panel button:hover { background: #f3f4f6; }
+  .user-menu-panel button.danger { color: #b91c1c; }
+  .user-menu-panel button.danger:hover { background: #fef2f2; }
+  .user-menu-sep { height: 1px; margin: 4px 0; background: #f3f4f6; }
+
   /* ─── 顶部栏 ─────────────────────────────────────────
      原来是「标题 | 状态文字」两端对齐，状态里一旦出现长报错
      （Failed to fetch）就把整行撑开、挤到标题旁边。现在改成
@@ -197,6 +252,60 @@
   @media (max-width: 720px) {
     .topbar { flex-direction: column; }
     .topbar-right { width: 100%; }
+  }
+
+  /* ─── 桌面端：侧栏与顶栏固定，只有内容区滚动 ──────────
+     窄屏不套用：手机上整页一起滚才是对的，把 100vh 锁死反而
+     会和移动浏览器可伸缩的地址栏打架。 */
+  @media (min-width: 721px) {
+    body { overflow: hidden; }            /* 滚动条只应出现在 .main 上 */
+    .layout { height: 100vh; }
+    .sidebar { height: 100vh; overflow-y: auto; }
+    .main { height: 100vh; overflow-y: auto; }
+    /* 负外边距把顶栏撑到 .main 的内边距之外，这样滚上来的内容
+       是从它「底下」穿过去，而不是从两侧的留白里露出来。
+       top 取 -32px 而不是 0：sticky 钉的是外边距框，而上外边距是
+       -32px，钉在 0 会把边框框推到 y=32，顶上留出 32px 没有背景的
+       缝，滚动的内容正好从缝里露出来。 */
+    .topbar {
+      position: sticky; top: -32px; z-index: 40;
+      background: #f4f6f9;
+      margin: -32px -40px 20px;
+      padding: 32px 40px 16px;
+    }
+  }
+
+  /* ─── 细滚动条 ───────────────────────────────────────
+     10px 的沟槽里用 3px 透明边框夹出 4px 的胶囊：视觉上又细又
+     圆，命中区却还是十指可点的宽度。静止时完全透明，滚动中或
+     鼠标停在内容区时才淡入（is-scrolling 由脚本加，见 wireScrollFade）。 */
+  .scroll-y::-webkit-scrollbar { width: 10px; height: 10px; }
+  .scroll-y::-webkit-scrollbar-track { background: transparent; }
+  .scroll-y::-webkit-scrollbar-corner { background: transparent; }
+  .scroll-y::-webkit-scrollbar-thumb {
+    border-radius: 999px;                 /* 两端半圆 */
+    border: 3px solid transparent;
+    background-clip: content-box;
+    background-color: transparent;
+    transition: background-color .25s ease;
+  }
+  .scroll-y:hover::-webkit-scrollbar-thumb,
+  .scroll-y.is-scrolling::-webkit-scrollbar-thumb { background-color: rgba(100,116,139,.35); }
+  .scroll-y::-webkit-scrollbar-thumb:hover { background-color: rgba(71,85,105,.65); }
+  /* 深色侧栏上，灰色看不见 */
+  .sidebar:hover::-webkit-scrollbar-thumb,
+  .sidebar.is-scrolling::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.22); }
+  .sidebar::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.45); }
+
+  /* Firefox 没有 ::-webkit-scrollbar，只能用标准属性，形状也调不了。
+     必须锁在这个 @supports 里：只要 scrollbar-width / scrollbar-color
+     取了非 auto 的值，Chrome 就会整套忽略上面的 ::-webkit-scrollbar，
+     退回原生细条 —— 胶囊白写了。selector(::-webkit-scrollbar) 在
+     Chrome/Safari 为真、Firefox 为假，正好把两边分开。 */
+  @supports not selector(::-webkit-scrollbar) {
+    .scroll-y { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+    .scroll-y:hover, .scroll-y.is-scrolling { scrollbar-color: rgba(100,116,139,.45) transparent; }
+    .sidebar:hover, .sidebar.is-scrolling { scrollbar-color: rgba(255,255,255,.28) transparent; }
   }
 
   /* ─── 弹窗（打赏 / 检测更新）───────────────────────── */
@@ -298,6 +407,42 @@
   .wizard-banner ul { margin: 8px 0 12px 20px; color: #78350f; font-size: 13px; line-height: 1.8; }
   .wizard-banner.ok ul { color: #064e3b; }
   .wizard-banner .actions { display: flex; gap: 8px; margin-top: 12px; }
+
+  /* ─── 紧凑版横幅 ───────────────────────────────────
+     「还差一步」「还在用默认密码」这类提醒只有一句话，却按向导的
+     排版铺了满满一屏 —— 加 .compact 压成一行：左边标题 + 说明，
+     右边按钮。真正的初始化向导（有问题清单要读）还是用原来的宽版。
+     flex-wrap 让窄屏自己折成两行，不用另写断点。 */
+  .wizard-banner.compact {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 12px 16px;
+  }
+  .wizard-banner.compact h3 { margin: 0; font-size: 14px; flex: 0 0 auto; }
+  .wizard-banner.compact #wizardBody {
+    flex: 1 1 320px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    min-width: 0;
+  }
+  /* 一条说明时就是一行普通文字；多条时用「·」隔开，比顿号中性，
+     四种语言下都不别扭。 */
+  .wizard-banner.compact ul {
+    margin: 0; padding: 0; list-style: none;
+    line-height: 1.5; min-width: 0;
+  }
+  .wizard-banner.compact li { display: inline; }
+  .wizard-banner.compact li + li::before { content: ' · '; opacity: .6; }
+  /* margin-left:auto 而不是父级 justify-content:space-between —— 说明文字
+     多到换行时，按钮会单独占一行，space-between 在只有一个项目的那行上
+     等于靠左，按钮就跑到中间去了；auto 外边距吃掉整行剩余空间，无论有没有
+     换行都稳稳靠右。 */
+  .wizard-banner.compact .actions { margin: 0 0 0 auto; flex: 0 0 auto; }
+  .wizard-banner.compact .btn { padding: 6px 12px; font-size: 13px; }
   .wizard-banner .spinner {
     display: inline-block;
     width: 14px;
@@ -334,7 +479,7 @@
 </head>
 <body>
 <div class="layout">
-  <aside class="sidebar">
+  <aside class="sidebar scroll-y">
     <h1 data-i18n>🤖 智能客服</h1>
     <div class="nav-item active" data-page="dashboard">📊 <span class="icon"></span><span data-i18n>概览</span></div>
     <div class="nav-item" data-page="llm">🤖 <span class="icon"></span><span data-i18n>模型配置</span></div>
@@ -342,11 +487,12 @@
     <div class="nav-item" data-page="rag">🔍 <span class="icon"></span><span data-i18n>RAG 设置</span></div>
     <div class="nav-item" data-page="documents">📄 <span class="icon"></span><span data-i18n>知识文档</span></div>
     <div class="nav-item" data-page="agent">💬 <span class="icon"></span><span data-i18n>客服信息</span></div>
+    <div class="nav-item" data-page="account">👤 <span class="icon"></span><span data-i18n>用户信息</span></div>
     <div class="nav-item" data-page="chat">🪟 <span class="icon"></span><span data-i18n>聊天预览</span></div>
     <div class="nav-item" data-page="embed">🌐 <span class="icon"></span><span data-i18n>嵌入指南</span></div>
   </aside>
 
-  <main class="main">
+  <main class="main scroll-y">
     <div class="topbar">
       <div class="topbar-left">
         <h2 data-i18n>管理后台</h2>
@@ -388,6 +534,34 @@
             <img src="/assets/github.svg" alt="" class="tool-img" />
             <span>GitHub</span>
           </a>
+
+          <!-- 当前账号。放在最右侧，hidden 直到 /api/auth/me（或本地缓存）
+               确认确实登录着 —— AUTH_ENABLED=false 时没有账号可显示。 -->
+          <div class="user-menu" id="userMenu" hidden>
+            <button class="user-avatar" id="userAvatarBtn" aria-haspopup="menu" aria-expanded="false"
+                    title="账号菜单" data-i18n-attr="title">
+              <span id="userInitial">A</span>
+            </button>
+            <div class="user-menu-panel" id="userMenuPanel" role="menu">
+              <div class="user-menu-head">
+                <span class="user-avatar" id="userInitialLg" aria-hidden="true">A</span>
+                <div class="user-menu-id">
+                  <strong id="userName">admin</strong>
+                  <span id="userSub">admin</span>
+                </div>
+              </div>
+              <button type="button" role="menuitem" id="miProfile">
+                <span aria-hidden="true">👤</span><span data-i18n>个人信息</span>
+              </button>
+              <button type="button" role="menuitem" id="miPassword">
+                <span aria-hidden="true">🔑</span><span data-i18n>修改密码</span>
+              </button>
+              <div class="user-menu-sep"></div>
+              <button type="button" role="menuitem" class="danger" id="miLogout">
+                <span aria-hidden="true">⏻</span><span data-i18n>退出登录</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -774,6 +948,72 @@
       </div>
     </section>
 
+    <section class="page" id="page-account">
+      <h2 data-i18n>用户信息</h2>
+      <p class="desc" data-i18n>管理登录后台的账号：修改用户名、昵称、邮箱和登录密码。</p>
+
+      <div class="card" id="cardProfile">
+        <h3 data-i18n>👤 账号资料</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label data-i18n>用户名（用于登录）</label>
+            <input type="text" id="acctUsername" autocapitalize="none" spellcheck="false"
+                   placeholder="admin" />
+            <div class="hint" data-i18n>3-32 个字符，不能包含空格。修改后请用新用户名登录。</div>
+          </div>
+          <div class="form-field">
+            <label data-i18n>昵称（显示名）</label>
+            <input type="text" id="acctDisplayName" placeholder="管理员" data-i18n-attr="placeholder" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label data-i18n>邮箱（可选）</label>
+            <input type="text" id="acctEmail" placeholder="admin@example.com" />
+            <div class="hint" data-i18n>仅作记录用途，系统不会发送邮件。</div>
+          </div>
+          <div class="form-field">
+            <label data-i18n>账号信息</label>
+            <div class="hint" id="acctMeta" style="margin-top:8px;line-height:1.9;"></div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnSaveProfile" data-i18n>💾 保存资料</button>
+        </div>
+        <div class="alert" id="profileAlert"></div>
+      </div>
+
+      <div class="card" id="cardPassword">
+        <h3 data-i18n>🔑 修改密码</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label data-i18n>原密码</label>
+            <input type="password" id="acctOldPw" autocomplete="current-password"
+                   placeholder="请输入当前密码" data-i18n-attr="placeholder" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label data-i18n>新密码</label>
+            <input type="password" id="acctNewPw" autocomplete="new-password"
+                   placeholder="至少 6 位" data-i18n-attr="placeholder" />
+          </div>
+          <div class="form-field">
+            <label data-i18n>确认新密码</label>
+            <input type="password" id="acctNewPw2" autocomplete="new-password"
+                   placeholder="再输入一次新密码" data-i18n-attr="placeholder" />
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnChangePw" data-i18n>🔒 修改密码</button>
+        </div>
+        <div class="alert" id="pwAlert"></div>
+        <p class="hint" style="margin:14px 0 0;color:#9ca3af;font-size:12px;" data-i18n>
+          💡 修改密码后，其他设备上的登录会立即失效，需要用新密码重新登录；当前这台设备会自动续期，不会掉线。
+        </p>
+      </div>
+    </section>
+
     <section class="page" id="page-chat">
       <h2 data-i18n>聊天预览</h2>
       <p class="desc" data-i18n>在这里直接测试 RAG 问答效果。预览用 iframe 隔离，与真实嵌入到网站的效果一致。</p>
@@ -806,13 +1046,13 @@
     apiUrl: '<span id="embedApiUrl">http://localhost:8000</span>',
     accent: '#0a66c2',
     position: 'right',
-    enableUpload: true,
   });
 &lt;/script&gt;</code></pre>
         <p style="color:#6b7280;font-size:12px;margin-top:8px;" data-i18n-html>
           💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置，
           改一次对所有已嵌入的站点生效。<br>
-          💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。
+          💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。<br>
+          💡 访客上传（<code>enableUpload</code>）默认关闭：知识文档接口需要管理员登录，访客点了只会得到 401。入库请在「知识文档」页面做。
         </p>
         <button class="btn btn-secondary" onclick="copyEmbedCode()" data-i18n>📋 复制代码</button>
       </div>
@@ -885,6 +1125,48 @@
    Admin UI Logic
    ======================================================================== */
 
+/* ------------------------------------------------------------------------
+   Auth guard — runs before anything else on the page.
+
+   The backend already refuses to serve this document without a valid cookie
+   (see the /admin gate in main.py), so this is the second of two locks, not
+   the only one. It still matters:
+
+     * the cookie is HttpOnly, so JS can't read it — this is how the page knows
+       which token to put in the Authorization header;
+     * a console pointed at another origin (?api=…) can't rely on the cookie
+       at all, because CORS with allow_origins=["*"] forbids credentialed
+       requests. There, the header IS the only credential;
+     * bouncing here avoids a screenful of 401s before the redirect.
+   ------------------------------------------------------------------------ */
+const AUTH = (() => {
+  const TOKEN_KEY = 'cs_admin_token';
+  const USER_KEY = 'cs_admin_user';
+
+  const token = () => localStorage.getItem(TOKEN_KEY) || '';
+
+  function setSession(data) {
+    if (!data) return;
+    if (data.access_token) localStorage.setItem(TOKEN_KEY, data.access_token);
+    if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  }
+
+  function user() {
+    try { return JSON.parse(localStorage.getItem(USER_KEY) || '{}'); } catch (_) { return {}; }
+  }
+
+  /** Send the visitor to the login page, remembering where they were. */
+  function toLogin() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.replace('login.html?next=' + next);
+  }
+
+  return { token, setSession, user, toLogin, TOKEN_KEY, USER_KEY };
+})();
+
+
 /**
  * Translate a runtime string. The argument is the Chinese source text, exactly
  * like the data-i18n markers in the HTML above — see i18n.js.
@@ -923,14 +1205,34 @@ const API = (() => {
   document.getElementById('embedApiUrl2').textContent = url;
   document.getElementById('embedIframeUrl').textContent = url + '/embed';
 
+  /**
+   * The bearer token, as a headers object.
+   *
+   * A function rather than a captured value: changing the password or renaming
+   * the account mints a new token mid-session, and a snapshot taken at boot
+   * would be stale (and rejected) from that point on.
+   */
+  function authHeader() {
+    const t = AUTH.token();
+    return t ? { Authorization: 'Bearer ' + t } : {};
+  }
+
   async function request(path, opts = {}) {
     const init = Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts);
+    init.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers, authHeader());
     if (init.body && typeof init.body !== 'string') init.body = JSON.stringify(init.body);
     const r = await fetch(url.replace(/\/+$/, '') + path, init);
     const text = await r.text();
     let data;
     try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
     if (!r.ok) {
+      // 401 means the token expired, was revoked by a password change, or the
+      // account was disabled. There is nothing the caller can do about it, so
+      // handle it once here instead of in every call site.
+      if (r.status === 401) {
+        AUTH.toLogin();
+        throw new Error(T('登录已过期，正在跳转登录页…'));
+      }
       const msg = (data && data.error && data.error.message) || (typeof data === 'string' ? data : ('HTTP ' + r.status));
       const err = new Error(msg);
       err.status = r.status;
@@ -939,8 +1241,32 @@ const API = (() => {
     }
     return data;
   }
-  return { url, request };
+  return { url, request, authHeader };
 })();
+
+/**
+ * Decide whether this browser may use the console, before anything loads.
+ *
+ * Has to be async, because "no token in localStorage" is ambiguous. It is the
+ * normal not-signed-in case, but it is also what you get with
+ * `AUTH_ENABLED=false` — the escape hatch for someone locked out of their own
+ * install. Bouncing to the login page there would be a loop the user cannot get
+ * out of: the page would just tell them auth is off and offer no way in.
+ *
+ * On a network error we send them to the login page anyway. A console that
+ * cannot reach its backend is useless either way, and the login page reports
+ * connection failures in plain language.
+ */
+async function requireSession() {
+  if (AUTH.token()) return true;
+  try {
+    const r = await fetch(API.url.replace(/\/+$/, '') + '/api/auth/state');
+    const s = r.ok ? await r.json() : null;
+    if (s && s.auth_required === false) return true;
+  } catch (_) { /* fall through to the login page */ }
+  AUTH.toLogin();
+  return false;
+}
 
 document.querySelectorAll('.nav-item').forEach(el => {
   el.addEventListener('click', () => {
@@ -951,6 +1277,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (el.dataset.page === 'documents') loadDocs();
     if (el.dataset.page === 'dashboard') loadDashboard();
     if (el.dataset.page === 'chat') mountChat();
+    if (el.dataset.page === 'account') loadAccount();
   });
 });
 
@@ -1001,25 +1328,35 @@ async function checkInit() {
 function renderWizard(s) {
   const banner = $('wizardBanner');
   if (!s) {
-    banner.classList.remove('show', 'ok');
+    banner.classList.remove('show', 'ok', 'compact');
     return;
   }
   if (s.ready) {
     // System OK, but show a "you still need API key" hint if applicable.
     const d = s.details || {};
     const missingKey = !d.llm_api_key_set || !d.embedding_api_key_set;
-    if (missingKey) {
+    // Anyone who can reach the network can log in with admin/123456 until this
+    // is changed, so it belongs in the same "not done yet" banner as the keys.
+    const defaultPw = !!d.default_password_in_use;
+    if (missingKey || defaultPw) {
       banner.classList.add('show');
       banner.classList.remove('ok');
-      $('wizardTitle').textContent = T('💡 还差最后一步：填入 API Key');
+      // 一句话的提醒，用紧凑排版压成一行，别占掉半屏。
+      banner.classList.add('compact');
+      $('wizardTitle').textContent = missingKey
+        ? T('💡 还差最后一步：填入 API Key')
+        : T('🔐 请尽快修改默认密码');
       const items = [];
       if (!d.llm_api_key_set) items.push(T('<li>未配置 <strong>LLM API Key</strong>（用于聊天生成）</li>'));
       if (!d.embedding_api_key_set) items.push(T('<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>'));
+      if (defaultPw) items.push(T('<li>后台仍在使用<strong>默认密码</strong>，任何人都能登录管理后台</li>'));
+      // 没有「前往左侧 XX」那句话：紧凑版里主按钮点下去就是那件事，
+      // 再写一遍等于占一行说废话。
       $('wizardBody').innerHTML = `
         <ul>${items.join('')}</ul>
-        <p style="margin:8px 0;font-size:13px;">${T('前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。')}</p>
         <div class="actions">
-          <button class="btn btn-primary" onclick="showPage('llm')">${T('⚙️ 去配置 API Key')}</button>
+          ${missingKey ? `<button class="btn btn-primary" onclick="showPage('llm')">${T('⚙️ 去配置 API Key')}</button>` : ''}
+          ${defaultPw ? `<button class="btn btn-primary" onclick="showAccount('password')">${T('🔐 去修改密码')}</button>` : ''}
           <button class="btn btn-secondary" id="btnRecheck">${T('🔄 重新检测')}</button>
         </div>`;
       rebindRecheck();
@@ -1028,7 +1365,7 @@ function renderWizard(s) {
     }
   } else {
     banner.classList.add('show');
-    banner.classList.remove('ok');
+    banner.classList.remove('ok', 'compact');
     $('wizardTitle').textContent = T('⚠️ 检测到系统未完成初始化');
     $('wizardBody').innerHTML = `
       <p style="margin:8px 0;color:#78350f;font-size:13px;">${T('系统检测到以下问题：')}</p>
@@ -1063,7 +1400,7 @@ async function runInit() {
       // Show success message inside the banner
       const banner = $('wizardBanner');
       banner.classList.add('ok');
-      banner.classList.remove('show');
+      banner.classList.remove('show', 'compact');
       // re-render with success content
       banner.classList.add('show');
       $('wizardTitle').textContent = T('🎉 初始化完成！');
@@ -1098,13 +1435,35 @@ function showPage(name) {
   if (nav) nav.classList.add('active');
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
+  // Land at the top of the new page. Without this, arriving from a long page
+  // (知识文档) at a short one leaves you looking at blank space below it.
+  const main = document.querySelector('.main');
+  if (main) main.scrollTop = 0;
   if (name === 'documents') loadDocs();
   if (name === 'dashboard') loadDashboard();
   if (name === 'chat') mountChat();
+  if (name === 'account') loadAccount();
 }
 
-function refreshAfterInit(s) {
-  if (!s) return;
+/**
+ * Fade the scrollbar in while scrolling, out ~1s after it stops.
+ *
+ * CSS alone can only react to :hover, which leaves out the common case: a wheel
+ * or trackpad scroll with the pointer nowhere near the right edge. The class is
+ * what the `.scroll-y.is-scrolling` rules key off.
+ */
+function wireScrollFade(el) {
+  if (!el) return;
+  let timer = null;
+  el.addEventListener('scroll', () => {
+    el.classList.add('is-scrolling');
+    clearTimeout(timer);
+    timer = setTimeout(() => el.classList.remove('is-scrolling'), 900);
+  }, { passive: true });
+}
+document.querySelectorAll('.scroll-y').forEach(wireScrollFade);
+
+function refreshAfterInit(s) {  if (!s) return;
   if (s.ready) {
     // re-render banner
     renderWizard(s);
@@ -1752,6 +2111,182 @@ $('btnSaveAgent').addEventListener('click', async () => {
   }
 });
 
+/* ========================================================================
+   用户信息（账号资料 + 修改密码）
+   ======================================================================== */
+
+/** Cached copy of GET /api/auth/me, so the form can be re-rendered cheaply. */
+let ACCOUNT = null;
+
+/** Reflect the signed-in account in the top-bar avatar menu. */
+function renderUserMenu(user) {
+  const u = user || AUTH.user();
+  if (!u || !u.username) return;
+  const label = u.display_name || u.username;
+  $('userName').textContent = label;
+  // Second line is whatever the first line isn't: no point repeating the
+  // username under itself when no nickname has been set.
+  $('userSub').textContent = u.email || (label === u.username ? '' : u.username);
+  // Codepoint-aware: 「管理员」[0] would be fine, but an emoji nickname would
+  // be split into a broken surrogate half by [0].
+  const initial = Array.from(label)[0].toUpperCase();
+  $('userInitial').textContent = initial;
+  $('userInitialLg').textContent = initial;
+  $('userMenu').hidden = false;
+}
+
+/* Avatar dropdown: opens on hover *and* on click.
+
+   Hover alone would strand anyone on a touch screen, where there is no hover
+   state to enter; click alone costs a click for what is a glanceable menu. The
+   close is delayed because the pointer has to cross an 8px gap between the
+   avatar and the panel — without the delay the menu would vanish mid-travel.
+   (A transparent bridge covers the gap too; the delay also forgives a hand that
+   slips a few pixels outside the panel.) */
+const userMenuEl = $('userMenu');
+let userMenuTimer = null;
+
+function openUserMenu() {
+  clearTimeout(userMenuTimer);
+  userMenuEl.classList.add('open');
+  $('userAvatarBtn').setAttribute('aria-expanded', 'true');
+}
+function closeUserMenu() {
+  clearTimeout(userMenuTimer);
+  userMenuEl.classList.remove('open');
+  $('userAvatarBtn').setAttribute('aria-expanded', 'false');
+}
+
+userMenuEl.addEventListener('mouseenter', openUserMenu);
+userMenuEl.addEventListener('mouseleave', () => {
+  userMenuTimer = setTimeout(closeUserMenu, 180);
+});
+$('userAvatarBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  userMenuEl.classList.contains('open') ? closeUserMenu() : openUserMenu();
+});
+// Any click elsewhere dismisses it, same as the language menu.
+document.addEventListener('click', closeUserMenu);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserMenu(); });
+
+/**
+ * Open 用户信息 scrolled to one of its two cards.
+ *
+ * The page holds 账号资料 and 修改密码 as separate cards, so both menu items can
+ * land on the section the user actually asked for instead of the top of the page.
+ */
+function showAccount(section) {
+  closeUserMenu();
+  showPage('account');
+  const card = $(section === 'password' ? 'cardPassword' : 'cardProfile');
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (section === 'password') $('acctOldPw').focus({ preventScroll: true });
+}
+
+$('miProfile').addEventListener('click', () => showAccount('profile'));
+$('miPassword').addEventListener('click', () => showAccount('password'));
+
+function renderAccount(u) {
+  ACCOUNT = u;
+  $('acctUsername').value = u.username || '';
+  $('acctDisplayName').value = u.display_name || '';
+  $('acctEmail').value = u.email || '';
+  const when = (iso) => {
+    if (!iso) return T('—');
+    const d = new Date(iso);
+    return isNaN(d) ? iso : d.toLocaleString();
+  };
+  $('acctMeta').innerHTML =
+    `${T('创建时间')}: ${escapeHtml(when(u.created_at))}<br>` +
+    `${T('上次登录')}: ${escapeHtml(when(u.last_login_at))}`;
+  renderUserMenu(u);
+}
+
+async function loadAccount() {
+  try {
+    renderAccount(await API.request('/api/auth/me'));
+  } catch (e) {
+    showAlert($('profileAlert'), '❌ ' + e.message, 'error');
+  }
+}
+
+$('btnSaveProfile').addEventListener('click', async () => {
+  clearAlert($('profileAlert'));
+  const btn = $('btnSaveProfile');
+  const username = $('acctUsername').value.trim();
+  const renamed = ACCOUNT && username && username !== ACCOUNT.username;
+
+  btn.disabled = true;
+  try {
+    const r = await API.request('/api/auth/me', {
+      method: 'PUT',
+      body: {
+        username: username,
+        display_name: $('acctDisplayName').value,
+        email: $('acctEmail').value,
+      },
+    });
+    // The old token still carries the old username in its payload. It keeps
+    // working (tokens resolve by id), but storing the fresh one keeps what we
+    // show and send in step with the account.
+    AUTH.setSession(r);
+    renderAccount(r.user);
+    showAlert($('profileAlert'), renamed
+      ? fmt(T('✅ 已保存，用户名已改为「{0}」，下次请用新用户名登录'), r.user.username)
+      : T('✅ 账号资料已保存'));
+  } catch (e) {
+    showAlert($('profileAlert'), '❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('btnChangePw').addEventListener('click', async () => {
+  clearAlert($('pwAlert'));
+  const oldPw = $('acctOldPw').value;
+  const newPw = $('acctNewPw').value;
+  const confirm = $('acctNewPw2').value;
+
+  // Checked here as well as on the server: a typo shouldn't cost a round trip,
+  // and the confirmation field is a pure UI concern the API doesn't know about.
+  if (!oldPw || !newPw) { showAlert($('pwAlert'), T('❌ 请填写原密码和新密码'), 'error'); return; }
+  if (newPw.length < 6) { showAlert($('pwAlert'), T('❌ 新密码至少 6 位'), 'error'); return; }
+  if (newPw !== confirm) { showAlert($('pwAlert'), T('❌ 两次输入的新密码不一致'), 'error'); return; }
+
+  const btn = $('btnChangePw');
+  btn.disabled = true;
+  try {
+    const r = await API.request('/api/auth/me/password', {
+      method: 'PUT',
+      body: { old_password: oldPw, new_password: newPw },
+    });
+    // Every token minted before this moment is now invalid, including the one
+    // this tab is holding. Swap in the fresh one or we log ourselves out.
+    AUTH.setSession(r);
+    $('acctOldPw').value = $('acctNewPw').value = $('acctNewPw2').value = '';
+    showAlert($('pwAlert'), T('✅ 密码已修改，其他设备需要重新登录'));
+    checkInit();      // clears the "still on the default password" reminder
+  } catch (e) {
+    showAlert($('pwAlert'), '❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('miLogout').addEventListener('click', async () => {
+  closeUserMenu();
+  if (!window.confirm(T('确定要退出登录吗？'))) return;
+  try {
+    // Clears the HttpOnly cookie; without this the browser could still open
+    // /admin/index.html even though the console dropped its token.
+    await API.request('/api/auth/logout', { method: 'POST' });
+  } catch (_) {
+    // Offline or already-expired session: local sign-out still has to happen.
+  }
+  AUTH.toLogin();
+});
+
 const dropzone = $('dropzone');
 const fileInput = $('fileInput');
 dropzone.addEventListener('click', () => fileInput.click());
@@ -1774,8 +2309,14 @@ async function handleUpload(file) {
   try {
     const fd = new FormData();
     fd.append('file', file);
-    const r = await fetch(API.url + '/api/documents/upload', { method: 'POST', body: fd });
+    // Raw fetch, not API.request: multipart bodies must NOT get a
+    // Content-Type header (the browser has to add its own boundary). The auth
+    // header still has to be attached by hand — /api/documents/* requires login.
+    const r = await fetch(API.url + '/api/documents/upload', {
+      method: 'POST', body: fd, headers: API.authHeader(),
+    });
     const data = await r.json();
+    if (r.status === 401) { AUTH.toLogin(); return; }
     if (!r.ok) throw new Error(data.error?.message || 'HTTP ' + r.status);
     a.textContent = fmt(T('✅ 上传成功：{0} ({1} 字节)'), data.filename, data.file_size);
     a.className = 'alert alert-success show';
@@ -1935,7 +2476,7 @@ $('btnOpenChatNewTab').addEventListener('click', () => {
 });
 
 function copyEmbedCode() {
-  // 不写 title / welcome / avatar —— 让 widget 从 /api/config 拉取，
+  // 不写 title / welcome / avatar —— 让 widget 从 /api/config/public 拉取，
   // 这样在管理后台改「客服信息」对所有已嵌入的站点立即生效。
   const code = `<script src="${API.url.replace(/\/+$/, '')}/widget/customer-service.js?v=1"><\/script>
 <script>
@@ -1943,7 +2484,6 @@ function copyEmbedCode() {
     apiUrl: '${API.url}',
     accent: '#0a66c2',
     position: 'right',
-    enableUpload: true,
   });
 <\/script>`;
   navigator.clipboard?.writeText(code).then(
@@ -2096,6 +2636,12 @@ cd backend &amp;&amp; pip install -r requirements.txt
 $('btnCheckUpdate').addEventListener('click', () => checkUpdate());
 
 (async function init() {
+  // Nothing else runs until this resolves: an unauthenticated console would
+  // otherwise fire a burst of doomed requests on the way to the login page.
+  if (!(await requireSession())) return;
+  // Painted from localStorage first so the top bar is never briefly empty;
+  // GET /api/auth/me later replaces it with authoritative values.
+  renderUserMenu();
   try { await loadProviders(); } catch (e) { console.warn('providers load failed', e); }
   try { await loadConfig(); } catch (e) { console.warn('config load failed', e); }
   try { await loadDocs(); } catch (e) { console.warn('docs load failed', e); }

@@ -16,6 +16,11 @@ from ..utils.obfuscation import deobfuscate, obfuscate
 
 router = APIRouter()
 
+# Mounted at the same prefix but WITHOUT the admin login guard — see main.py.
+# Keep this router to endpoints that are safe for an anonymous visitor on a
+# third-party site, because that is exactly who calls them.
+public_router = APIRouter()
+
 
 class VectorDBConfigIn(BaseModel):
     provider: str = "chroma"
@@ -220,3 +225,38 @@ async def put_config(body: CSConfigIn, db: AsyncSession = Depends(get_db)) -> CS
 @router.get("/providers", summary="List supported LLM providers")
 async def list_llm_providers() -> dict:
     return {"providers": list_providers()}
+
+
+class CSConfigPublicOut(BaseModel):
+    """The only part of the configuration an anonymous visitor may read.
+
+    The embeddable widget reads 客服名称 / 头像 / 欢迎语 / 联系方式 from here so
+    the admin console stays the single source of truth for every site that has
+    embedded it.
+
+    It exists because ``GET /api/config`` — which used to serve this purpose —
+    also returns base URLs, model names, vector-DB coordinates and masked API
+    keys. That endpoint now requires login, so the widget needs a field subset
+    it can fetch without one. Add a field here only after asking whether you'd
+    be comfortable seeing it in a stranger's browser devtools.
+    """
+
+    name: str = "智能客服小助手"
+    avatar: str = ""
+    welcome_message: str = "您好，请问有什么可以帮您？"
+    contact_phone: str = ""
+    contact_email: str = ""
+
+
+@public_router.get(
+    "/public",
+    response_model=CSConfigPublicOut,
+    summary="Public customer-service display info (no login required)",
+)
+async def get_public_config(db: AsyncSession = Depends(get_db)) -> CSConfigPublicOut:
+    row = (await db.execute(select(CSConfig).limit(1))).scalar_one_or_none()
+    data = (row.data if row is not None else None) or {}
+    fields = CSConfigPublicOut.model_fields
+    return CSConfigPublicOut(
+        **{k: data[k] for k in fields if isinstance(data.get(k), str) and data.get(k)}
+    )

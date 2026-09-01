@@ -63,8 +63,8 @@
     '拖拽文件到这里，或 <strong>点击选择</strong>': '拖曳檔案到這裡，或 <strong>點擊選擇</strong>',
     '把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：':
       '把 <code>customer-service.js</code> 部署到你的 CDN，然後在目標頁面加入：',
-    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。':
-      '💡 客服名稱、頭像、歡迎語不用寫在這裡 —— 元件會自動讀取「客服資訊」頁的設定， 改一次對所有已嵌入的網站生效。<br> 💡 更新元件後把 <code>?v=1</code> 遞增（<code>?v=2</code>…），否則使用者瀏覽器會繼續使用快取的舊版本。',
+    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。<br> 💡 访客上传（<code>enableUpload</code>）默认关闭：知识文档接口需要管理员登录，访客点了只会得到 401。入库请在「知识文档」页面做。':
+      '💡 客服名稱、頭像、歡迎語不用寫在這裡 —— 元件會自動讀取「客服資訊」頁的設定， 改一次對所有已嵌入的網站生效。<br> 💡 更新元件後把 <code>?v=1</code> 遞增（<code>?v=2</code>…），否則使用者瀏覽器會繼續使用快取的舊版本。<br> 💡 訪客上傳（<code>enableUpload</code>）預設關閉：知識文件介面需要管理員登入，訪客點了只會得到 401。匯入請在「知識文件」頁面進行。',
     '<code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20）， 给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。':
       '<code>400×636</code> 是面板展開後需要的尺寸（面板 360×540 + 按鈕位 76 + 邊距 20）， 給得太小面板會被裁切；<code>background:transparent</code> 避免多餘區域露出白底。',
     '小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：':
@@ -209,7 +209,6 @@
       '<li>未設定 <strong>LLM API Key</strong>（用於聊天生成）</li>',
     '<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>':
       '<li>未設定 <strong>Embedding API Key</strong>（用於文件向量化）</li>',
-    '前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。': '前往左側 <strong>「模型設定」</strong> 填入 Key 並儲存。',
     '⚙️ 去配置 API Key': '⚙️ 前往設定 API Key',
     '<span class="spinner"></span>正在初始化…': '<span class="spinner"></span>正在初始化…',
     '🎉 初始化完成！': '🎉 初始化完成！',
@@ -334,6 +333,70 @@
     '查看发布说明 ↗': '查看發布說明 ↗',
     '✓ 已复制': '✓ 已複製',
     '复制以下命令：': '複製以下指令：',
+
+    // --- 登录 / 账号 -----------------------------------------------------
+    '用户信息': '使用者資訊',
+    '退出登录': '登出',
+    '个人信息': '個人資料',
+    '修改密码': '修改密碼',
+    '账号菜单': '帳號選單',
+    '管理登录后台的账号：修改用户名、昵称、邮箱和登录密码。':
+      '管理登入後台的帳號：修改使用者名稱、暱稱、電子郵件與登入密碼。',
+    '👤 账号资料': '👤 帳號資料',
+    '用户名（用于登录）': '使用者名稱（用於登入）',
+    '3-32 个字符，不能包含空格。修改后请用新用户名登录。':
+      '3-32 個字元，不能包含空格。修改後請用新的使用者名稱登入。',
+    '昵称（显示名）': '暱稱（顯示名稱）',
+    '邮箱（可选）': '電子郵件（選填）',
+    '仅作记录用途，系统不会发送邮件。': '僅作記錄用途，系統不會寄送郵件。',
+    '账号信息': '帳號資訊',
+    '💾 保存资料': '💾 儲存資料',
+    '🔑 修改密码': '🔑 修改密碼',
+    '原密码': '目前密碼',
+    '新密码': '新密碼',
+    '确认新密码': '確認新密碼',
+    '🔒 修改密码': '🔒 修改密碼',
+    '💡 修改密码后，其他设备上的登录会立即失效，需要用新密码重新登录；当前这台设备会自动续期，不会掉线。':
+      '💡 修改密碼後，其他裝置上的登入會立即失效，需要用新密碼重新登入；目前這台裝置會自動續期，不會被登出。',
+    '登录 · 智能客服管理后台': '登入 · 智慧客服管理後台',
+    '智能客服管理后台': '智慧客服管理後台',
+    '请登录后继续': '請登入後繼續',
+    '用户名': '使用者名稱',
+    '密码': '密碼',
+    '登 录': '登 入',
+    'API 地址': 'API 網址',
+    '管理当前账号': '管理目前帳號',
+    '管理员': '管理員',
+    '请输入当前密码': '請輸入目前密碼',
+    '至少 6 位': '至少 6 位',
+    '再输入一次新密码': '再輸入一次新密碼',
+    '请输入用户名': '請輸入使用者名稱',
+    '请输入密码': '請輸入密碼',
+    '显示 / 隐藏密码': '顯示 / 隱藏密碼',
+    '登录已过期，正在跳转登录页…': '登入已過期，正在前往登入頁…',
+    '🔐 请尽快修改默认密码': '🔐 請盡快修改預設密碼',
+    '<li>后台仍在使用<strong>默认密码</strong>，任何人都能登录管理后台</li>':
+      '<li>後台仍在使用<strong>預設密碼</strong>，任何人都能登入管理後台</li>',
+    '🔐 去修改密码': '🔐 去修改密碼',
+    '创建时间': '建立時間',
+    '上次登录': '上次登入',
+    '✅ 已保存，用户名已改为「{0}」，下次请用新用户名登录':
+      '✅ 已儲存，使用者名稱已改為「{0}」，下次請用新的使用者名稱登入',
+    '✅ 账号资料已保存': '✅ 帳號資料已儲存',
+    '❌ 请填写原密码和新密码': '❌ 請填寫目前密碼與新密碼',
+    '❌ 新密码至少 6 位': '❌ 新密碼至少 6 位',
+    '❌ 两次输入的新密码不一致': '❌ 兩次輸入的新密碼不一致',
+    '✅ 密码已修改，其他设备需要重新登录': '✅ 密碼已修改，其他裝置需要重新登入',
+    '确定要退出登录吗？': '確定要登出嗎？',
+    '当前已关闭登录鉴权（AUTH_ENABLED=false），可直接进入后台。':
+      '目前已關閉登入驗證（AUTH_ENABLED=false），可直接進入後台。',
+    '首次使用：默认账号 admin，默认密码 123456，登录后请立即修改。':
+      '首次使用：預設帳號 admin，預設密碼 123456，登入後請立即修改。',
+    '请输入用户名和密码': '請輸入使用者名稱與密碼',
+    '登录中…': '登入中…',
+    '用户名或密码错误': '使用者名稱或密碼錯誤',
+    '无法连接后端，请确认服务已启动且 API 地址正确':
+      '無法連線後端，請確認服務已啟動且 API 網址正確',
   };
 
   /** Japanese catalog. */
@@ -353,8 +416,8 @@
     '拖拽文件到这里，或 <strong>点击选择</strong>': 'ファイルをここにドラッグ、または <strong>クリックして選択</strong>',
     '把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：':
       '<code>customer-service.js</code> を CDN にデプロイし、対象ページに以下を追加してください：',
-    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。':
-      '💡 サポート名、アバター、ウェルカムメッセージはここに書く必要はありません —— コンポーネントが「サポート情報」ページの設定を自動で読み込むため、 一度変更すればすべての埋め込み済みサイトに反映されます。<br> 💡 コンポーネントを更新したら <code>?v=1</code> の数字を増やしてください（<code>?v=2</code>…）。そうしないとユーザーのブラウザがキャッシュされた古いバージョンを使い続けます。',
+    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。<br> 💡 访客上传（<code>enableUpload</code>）默认关闭：知识文档接口需要管理员登录，访客点了只会得到 401。入库请在「知识文档」页面做。':
+      '💡 サポート名、アバター、ウェルカムメッセージはここに書く必要はありません —— コンポーネントが「サポート情報」ページの設定を自動で読み込むため、 一度変更すればすべての埋め込み済みサイトに反映されます。<br> 💡 コンポーネントを更新したら <code>?v=1</code> の数字を増やしてください（<code>?v=2</code>…）。そうしないとユーザーのブラウザがキャッシュされた古いバージョンを使い続けます。<br> 💡 訪問者のアップロード（<code>enableUpload</code>）は既定でオフです：ナレッジ文書の API は管理者ログインが必要で、訪問者が押しても 401 になります。取り込みは「ナレッジ文書」ページで行ってください。',
     '<code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20）， 给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。':
       '<code>400×636</code> はパネルを展開したときに必要なサイズです（パネル 360×540 + ボタン領域 76 + 余白 20）。 小さすぎるとパネルが切れてしまいます。<code>background:transparent</code> で余分な領域に白い背景が見えるのを防ぎます。',
     '小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：':
@@ -502,8 +565,6 @@
       '<li><strong>LLM API Key</strong> が未設定です（チャット生成用）</li>',
     '<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>':
       '<li><strong>Embedding API Key</strong> が未設定です（ドキュメントのベクトル化用）</li>',
-    '前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。':
-      '左側の <strong>「モデル設定」</strong> で Key を入力して保存してください。',
     '⚙️ 去配置 API Key': '⚙️ API Key を設定する',
     '<span class="spinner"></span>正在初始化…': '<span class="spinner"></span>初期化中…',
     '🎉 初始化完成！': '🎉 初期化が完了しました！',
@@ -636,6 +697,71 @@
     '查看发布说明 ↗': 'リリースノートを見る ↗',
     '✓ 已复制': '✓ コピーしました',
     '复制以下命令：': '以下のコマンドをコピーしてください：',
+
+    // --- 登录 / 账号 -----------------------------------------------------
+    '用户信息': 'アカウント情報',
+    '退出登录': 'ログアウト',
+    '个人信息': 'プロフィール',
+    '修改密码': 'パスワード変更',
+    '账号菜单': 'アカウントメニュー',
+    '管理登录后台的账号：修改用户名、昵称、邮箱和登录密码。':
+      '管理画面にログインするアカウントの管理：ユーザー名・表示名・メールアドレス・パスワードを変更できます。',
+    '👤 账号资料': '👤 アカウント情報',
+    '用户名（用于登录）': 'ユーザー名（ログイン用）',
+    '3-32 个字符，不能包含空格。修改后请用新用户名登录。':
+      '3〜32 文字、スペースは使えません。変更後は新しいユーザー名でログインしてください。',
+    '昵称（显示名）': '表示名',
+    '邮箱（可选）': 'メールアドレス（任意）',
+    '仅作记录用途，系统不会发送邮件。': '記録用のみで、システムからメールは送信されません。',
+    '账号信息': 'アカウント情報',
+    '💾 保存资料': '💾 保存',
+    '🔑 修改密码': '🔑 パスワード変更',
+    '原密码': '現在のパスワード',
+    '新密码': '新しいパスワード',
+    '确认新密码': '新しいパスワード（確認）',
+    '🔒 修改密码': '🔒 パスワードを変更',
+    '💡 修改密码后，其他设备上的登录会立即失效，需要用新密码重新登录；当前这台设备会自动续期，不会掉线。':
+      '💡 パスワードを変更すると、他の端末のログインは直ちに無効になり、新しいパスワードでの再ログインが必要です。この端末は自動的に更新されるためログアウトされません。',
+    '登录 · 智能客服管理后台': 'ログイン · AI カスタマーサポート管理画面',
+    '智能客服管理后台': 'AI カスタマーサポート管理画面',
+    '请登录后继续': 'ログインして続行してください',
+    '用户名': 'ユーザー名',
+    '密码': 'パスワード',
+    '登 录': 'ログイン',
+    'API 地址': 'API アドレス',
+    '管理当前账号': '現在のアカウントを管理',
+    '管理员': '管理者',
+    '请输入当前密码': '現在のパスワードを入力',
+    '至少 6 位': '6 文字以上',
+    '再输入一次新密码': '新しいパスワードをもう一度入力',
+    '请输入用户名': 'ユーザー名を入力',
+    '请输入密码': 'パスワードを入力',
+    '显示 / 隐藏密码': 'パスワードの表示 / 非表示',
+    '登录已过期，正在跳转登录页…': 'ログインの有効期限が切れました。ログイン画面へ移動します…',
+    '🔐 请尽快修改默认密码': '🔐 初期パスワードを早めに変更してください',
+    '<li>后台仍在使用<strong>默认密码</strong>，任何人都能登录管理后台</li>':
+      '<li>管理画面が<strong>初期パスワード</strong>のままです。誰でもログインできてしまいます</li>',
+    '🔐 去修改密码': '🔐 パスワードを変更する',
+    '创建时间': '作成日時',
+    '上次登录': '最終ログイン',
+    '✅ 已保存，用户名已改为「{0}」，下次请用新用户名登录':
+      '✅ 保存しました。ユーザー名は「{0}」に変更されました。次回は新しいユーザー名でログインしてください',
+    '✅ 账号资料已保存': '✅ アカウント情報を保存しました',
+    '❌ 请填写原密码和新密码': '❌ 現在のパスワードと新しいパスワードを入力してください',
+    '❌ 新密码至少 6 位': '❌ 新しいパスワードは 6 文字以上にしてください',
+    '❌ 两次输入的新密码不一致': '❌ 新しいパスワードが一致しません',
+    '✅ 密码已修改，其他设备需要重新登录':
+      '✅ パスワードを変更しました。他の端末では再ログインが必要です',
+    '确定要退出登录吗？': 'ログアウトしますか？',
+    '当前已关闭登录鉴权（AUTH_ENABLED=false），可直接进入后台。':
+      '現在ログイン認証は無効です（AUTH_ENABLED=false）。そのまま管理画面に入れます。',
+    '首次使用：默认账号 admin，默认密码 123456，登录后请立即修改。':
+      '初回利用：初期アカウント admin、初期パスワード 123456。ログイン後すぐに変更してください。',
+    '请输入用户名和密码': 'ユーザー名とパスワードを入力してください',
+    '登录中…': 'ログイン中…',
+    '用户名或密码错误': 'ユーザー名またはパスワードが正しくありません',
+    '无法连接后端，请确认服务已启动且 API 地址正确':
+      'バックエンドに接続できません。サービスが起動しているか、API アドレスが正しいか確認してください',
   };
 
   /** English catalog. */
@@ -657,8 +783,8 @@
     '拖拽文件到这里，或 <strong>点击选择</strong>': 'Drag files here, or <strong>click to select</strong>',
     '把 <code>customer-service.js</code> 部署到你的 CDN，然后在目标页面加入：':
       'Deploy <code>customer-service.js</code> to your CDN, then add this to the target page:',
-    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。':
-      '💡 No need to set the agent name, avatar, or welcome message here — the widget reads the Agent Info page automatically, so one change applies to every embedded site.<br> 💡 After updating the widget, bump <code>?v=1</code> (<code>?v=2</code>…), or browsers will keep using the cached old version.',
+    '💡 客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取「客服信息」页的配置， 改一次对所有已嵌入的站点生效。<br> 💡 更新组件后把 <code>?v=1</code> 递增（<code>?v=2</code>…），否则用户浏览器会继续用缓存的旧版本。<br> 💡 访客上传（<code>enableUpload</code>）默认关闭：知识文档接口需要管理员登录，访客点了只会得到 401。入库请在「知识文档」页面做。':
+      '💡 No need to set the agent name, avatar, or welcome message here — the widget reads the Agent Info page automatically, so one change applies to every embedded site.<br> 💡 After updating the widget, bump <code>?v=1</code> (<code>?v=2</code>…), or browsers will keep using the cached old version.<br> 💡 Visitor upload (<code>enableUpload</code>) is off by default: the knowledge-document endpoints require an admin login, so a visitor pressing the button only gets a 401. Do your ingestion on the Knowledge Documents page.',
     '<code>400×636</code> 是面板展开后需要的尺寸（面板 360×540 + 按钮位 76 + 边距 20）， 给小了面板会被裁掉；<code>background:transparent</code> 避免多余区域露出白底。':
       '<code>400×636</code> is the size needed once the panel expands (panel 360×540 + button 76 + margin 20); any smaller and the panel gets clipped. <code>background:transparent</code> keeps the extra area from showing a white background.',
     '小程序不支持 <code>&lt;script&gt;</code> 注入，用 <code>&lt;web-view&gt;</code> 组件加载远端页面：':
@@ -816,8 +942,6 @@
       '<li>No <strong>LLM API Key</strong> configured (used for chat generation)</li>',
     '<li>未配置 <strong>Embedding API Key</strong>（用于文档向量化）</li>':
       '<li>No <strong>Embedding API Key</strong> configured (used for document vectorization)</li>',
-    '前往左侧 <strong>「模型配置」</strong> 填入 Key 并保存。':
-      'Open <strong>"Model Settings"</strong> in the left sidebar, enter your key and save.',
     '⚙️ 去配置 API Key': '⚙️ Configure API Key',
     '<span class="spinner"></span>正在初始化…': '<span class="spinner"></span>Initializing…',
     '🎉 初始化完成！': '🎉 Initialization complete!',
@@ -960,6 +1084,71 @@
     '查看发布说明 ↗': 'View release notes ↗',
     '✓ 已复制': '✓ Copied',
     '复制以下命令：': 'Copy the command below:',
+
+    // --- 登录 / 账号 -----------------------------------------------------
+    '用户信息': 'Account',
+    '退出登录': 'Sign out',
+    '个人信息': 'Profile',
+    '修改密码': 'Change password',
+    '账号菜单': 'Account menu',
+    '管理登录后台的账号：修改用户名、昵称、邮箱和登录密码。':
+      'Manage the account you sign in with: username, display name, email and password.',
+    '👤 账号资料': '👤 Profile',
+    '用户名（用于登录）': 'Username (used to sign in)',
+    '3-32 个字符，不能包含空格。修改后请用新用户名登录。':
+      '3-32 characters, no spaces. Sign in with the new username after changing it.',
+    '昵称（显示名）': 'Display name',
+    '邮箱（可选）': 'Email (optional)',
+    '仅作记录用途，系统不会发送邮件。': 'Kept for reference only — no email is ever sent.',
+    '账号信息': 'Account details',
+    '💾 保存资料': '💾 Save Profile',
+    '🔑 修改密码': '🔑 Change Password',
+    '原密码': 'Current password',
+    '新密码': 'New password',
+    '确认新密码': 'Confirm new password',
+    '🔒 修改密码': '🔒 Change Password',
+    '💡 修改密码后，其他设备上的登录会立即失效，需要用新密码重新登录；当前这台设备会自动续期，不会掉线。':
+      '💡 Changing your password immediately signs out every other device, which must sign in again with the new password. This device is renewed automatically and stays signed in.',
+    '登录 · 智能客服管理后台': 'Sign in · Customer Service Admin',
+    '智能客服管理后台': 'Customer Service Admin',
+    '请登录后继续': 'Please sign in to continue',
+    '用户名': 'Username',
+    '密码': 'Password',
+    '登 录': 'Sign In',
+    'API 地址': 'API address',
+    '管理当前账号': 'Manage this account',
+    '管理员': 'Administrator',
+    '请输入当前密码': 'Enter your current password',
+    '至少 6 位': 'At least 6 characters',
+    '再输入一次新密码': 'Enter the new password again',
+    '请输入用户名': 'Enter your username',
+    '请输入密码': 'Enter your password',
+    '显示 / 隐藏密码': 'Show / hide password',
+    '登录已过期，正在跳转登录页…': 'Your session expired — redirecting to the sign-in page…',
+    '🔐 请尽快修改默认密码': '🔐 Change the default password soon',
+    '<li>后台仍在使用<strong>默认密码</strong>，任何人都能登录管理后台</li>':
+      '<li>The console is still using the <strong>default password</strong> — anyone can sign in</li>',
+    '🔐 去修改密码': '🔐 Change Password',
+    '创建时间': 'Created',
+    '上次登录': 'Last sign-in',
+    '✅ 已保存，用户名已改为「{0}」，下次请用新用户名登录':
+      '✅ Saved. Your username is now "{0}" — use it to sign in next time',
+    '✅ 账号资料已保存': '✅ Profile saved',
+    '❌ 请填写原密码和新密码': '❌ Enter both your current and new password',
+    '❌ 新密码至少 6 位': '❌ The new password must be at least 6 characters',
+    '❌ 两次输入的新密码不一致': '❌ The two new passwords do not match',
+    '✅ 密码已修改，其他设备需要重新登录':
+      '✅ Password changed — other devices must sign in again',
+    '确定要退出登录吗？': 'Sign out?',
+    '当前已关闭登录鉴权（AUTH_ENABLED=false），可直接进入后台。':
+      'Authentication is currently disabled (AUTH_ENABLED=false) — you can open the console directly.',
+    '首次使用：默认账号 admin，默认密码 123456，登录后请立即修改。':
+      'First run: the default account is admin with password 123456. Change it as soon as you sign in.',
+    '请输入用户名和密码': 'Enter your username and password',
+    '登录中…': 'Signing in…',
+    '用户名或密码错误': 'Incorrect username or password',
+    '无法连接后端，请确认服务已启动且 API 地址正确':
+      'Cannot reach the backend — check that it is running and the API address is correct',
   };
 
   // -----------------------------------------------------------------------

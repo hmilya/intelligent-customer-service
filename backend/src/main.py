@@ -15,6 +15,7 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 # 支持 `python src/main.py` 直接运行：把 backend/ 加进 sys.path，
 # 这样下面的 `src.xxx` 绝对导入才能找到包。
@@ -23,16 +24,27 @@ if __package__ in (None, ""):
     if str(_BACKEND_DIR) not in sys.path:
         sys.path.insert(0, str(_BACKEND_DIR))
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.api import admin as admin_api, chat, config, documents, models as models_api, sessions
+from src.api import (
+    admin as admin_api,
+    auth as auth_api,
+    chat,
+    config,
+    documents,
+    models as models_api,
+    sessions,
+)
+from src.core.auth import require_admin
 from src.core.config import get_settings
-from src.core.database import dispose_engine, get_engine
+from src.core.database import dispose_engine, get_engine, session_scope
 from src.core.exceptions import install_exception_handlers
+from src.core.security import TokenError, decode_token
 from src.models.base import Base
+from src.services.auth_service import ensure_default_admin
 
 log = logging.getLogger(__name__)
 
@@ -57,10 +69,11 @@ _LANDING_I18N_SCRIPT = r"""
       '⚙️ 进入管理后台': '⚙️ 進入管理後台',
       '🪟 客服组件演示': '🪟 客服元件示範',
       '📡 API 端点': '📡 API 端點',
+      '后台登录': '後台登入',
       'SSE 流式问答': 'SSE 串流問答',
       '测试模型连接': '測試模型連線',
-      '完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）':
-        '完整清單見 <a href="/docs">Swagger 文件</a>（共 23 個端點）',
+      '完整列表见 <a href="/docs">Swagger 文档</a>（共 34 个端点）':
+        '完整清單見 <a href="/docs">Swagger 文件</a>（共 34 個端點）',
       '🌐 嵌入到你的网站': '🌐 嵌入到你的網站',
       '客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。':
         '客服名稱、頭像、歡迎語不用寫在這裡 —— 元件會自動讀取 <a href="/admin/">「客服資訊」</a>的設定，改一次對所有站點生效。<br> <code>?v=1</code> 是快取版本號，更新元件後遞增它。',
@@ -85,10 +98,11 @@ _LANDING_I18N_SCRIPT = r"""
       '⚙️ 进入管理后台': '⚙️ 管理コンソールを開く',
       '🪟 客服组件演示': '🪟 チャットウィジェットのデモ',
       '📡 API 端点': '📡 API エンドポイント',
+      '后台登录': '管理画面ログイン',
       'SSE 流式问答': 'SSE ストリーミング応答',
       '测试模型连接': 'モデル接続のテスト',
-      '完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）':
-        '全一覧は <a href="/docs">Swagger ドキュメント</a>をご覧ください（全 23 エンドポイント）',
+      '完整列表见 <a href="/docs">Swagger 文档</a>（共 34 个端点）':
+        '全一覧は <a href="/docs">Swagger ドキュメント</a>をご覧ください（全 34 エンドポイント）',
       '🌐 嵌入到你的网站': '🌐 自分のサイトに埋め込む',
       '客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。':
         '名前・アイコン・あいさつ文をここに書く必要はありません。ウィジェットが <a href="/admin/">「担当者情報」</a>の設定を自動で読み込むので、一度変更すればすべてのサイトに反映されます。<br> <code>?v=1</code> はキャッシュ用のバージョン番号です。ウィジェットを更新したら増やしてください。',
@@ -113,10 +127,11 @@ _LANDING_I18N_SCRIPT = r"""
       '⚙️ 进入管理后台': '⚙️ Open admin console',
       '🪟 客服组件演示': '🪟 Chat widget demo',
       '📡 API 端点': '📡 API endpoints',
+      '后台登录': 'admin sign-in',
       'SSE 流式问答': 'SSE streaming answers',
       '测试模型连接': 'test model connection',
-      '完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）':
-        'See the <a href="/docs">Swagger docs</a> for the full list (23 endpoints)',
+      '完整列表见 <a href="/docs">Swagger 文档</a>（共 34 个端点）':
+        'See the <a href="/docs">Swagger docs</a> for the full list (34 endpoints)',
       '🌐 嵌入到你的网站': '🌐 Embed it in your site',
       '客服名称、头像、欢迎语不用写在这里 —— 组件会自动读取 <a href="/admin/">「客服信息」</a>的配置，改一次对所有站点生效。<br> <code>?v=1</code> 是缓存版本号，更新组件后递增它。':
         'You do not need to set the name, avatar or greeting here — the widget reads them from your <a href="/admin/">agent settings</a>, so one change applies to every site.<br> <code>?v=1</code> is a cache-busting version; bump it whenever you update the widget.',
@@ -207,6 +222,20 @@ async def lifespan(app: FastAPI):
     log.info("Database ready: %s", settings.database.url)
     log.info("Vector DB: %s / collection=%s", settings.vector_db.provider, settings.vector_db.collection)
 
+    # Seed the admin account so a fresh install has something to log in with.
+    if settings.auth.enabled:
+        async with session_scope() as db:
+            await ensure_default_admin(db)
+        if settings.app.secret_key == "change-me-in-production" and settings.app.env != "development":
+            # Login tokens are HMAC-signed with this value. Leave it at the
+            # documented default on a public server and anyone can forge one.
+            log.warning(
+                "APP_SECRET_KEY is still the default — admin login tokens can be "
+                "forged. Set APP_SECRET_KEY in .env before exposing this server."
+            )
+    else:
+        log.warning("AUTH_ENABLED=false — the admin console and its APIs are UNPROTECTED.")
+
     yield
 
     await dispose_engine()
@@ -255,6 +284,44 @@ def create_app() -> FastAPI:
             response.headers["Expires"] = "0"
         return response
 
+    # ---------------------------------------------------------------------
+    #  Admin page gate
+    # ---------------------------------------------------------------------
+    # `/admin` is a StaticFiles mount, not a route, so `Depends` can't reach it —
+    # the check has to happen in middleware.
+    #
+    # This intentionally gates only the console *document*. Everything else under
+    # /admin stays open, and two of those are load-bearing:
+    #
+    #   * /admin/login.html — the page you'd be redirected to. Gating it loops.
+    #   * /admin/embed.html — the standalone chat window that `/embed` redirects
+    #     to. Third-party sites iframe this. Gating it takes down the chat widget
+    #     on every site that has embedded it.
+    #
+    # i18n.js and the assets are neither secret nor useful without the console.
+    _GATED_ADMIN_PATHS = {"/admin", "/admin/", "/admin/index.html"}
+
+    @app.middleware("http")
+    async def _gate_admin_page(request: Request, call_next):
+        settings_ = get_settings()
+        if settings_.auth.enabled and request.url.path in _GATED_ADMIN_PATHS:
+            # Cookie only: a browser navigating to a page cannot send an
+            # Authorization header. The console's API calls use the header and
+            # are checked by `require_admin` instead.
+            token = request.cookies.get(settings_.auth.cookie_name)
+            valid = False
+            if token:
+                try:
+                    decode_token(token, settings_.app.secret_key)
+                    valid = True
+                except TokenError:
+                    valid = False
+            if not valid:
+                # `next` is only ever used as a same-origin path by login.html.
+                nxt = quote(request.url.path, safe="/")
+                return RedirectResponse(f"/admin/login.html?next={nxt}", status_code=302)
+        return await call_next(request)
+
     # Serve admin UI and widget as static files (no separate HTTP server needed).
     frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
     if (frontend_dir / "admin").exists():
@@ -271,12 +338,30 @@ def create_app() -> FastAPI:
         app.mount("/shared", StaticFiles(directory=str(frontend_dir / "shared")), name="shared")
 
     # Routers
-    app.include_router(config.router,      prefix="/api/config",    tags=["config"])
-    app.include_router(sessions.router,    prefix="/api/sessions",  tags=["sessions"])
-    app.include_router(documents.router,   prefix="/api/documents", tags=["documents"])
-    app.include_router(chat.router,        prefix="/api/chat",      tags=["chat"])
-    app.include_router(models_api.router,  prefix="/api/models",    tags=["models"])
-    app.include_router(admin_api.router,   prefix="/api/admin",    tags=["admin"])
+    #
+    # Anything the admin console drives — configuration, knowledge documents,
+    # model tests, the install wizard — sits behind `require_admin`, applied at
+    # the router level so a newly added endpoint is protected by default rather
+    # than by remembering to decorate it.
+    #
+    # Deliberately left open, because visitors on third-party sites call them:
+    #   /api/chat, /api/sessions   the chat window itself
+    #   /api/config/public         客服名称 / 头像 / 欢迎语 for the widget
+    #   /api/auth/login, /state    you cannot log in from behind the login wall
+    guard = [Depends(require_admin)]
+
+    # Public subset first — a separate router because router-level dependencies
+    # apply to every route in the router they're attached to.
+    app.include_router(config.public_router, prefix="/api/config",   tags=["config"])
+    app.include_router(auth_api.router,      prefix="/api/auth",     tags=["auth"])
+
+    app.include_router(config.router,     prefix="/api/config",    tags=["config"],    dependencies=guard)
+    app.include_router(documents.router,  prefix="/api/documents", tags=["documents"], dependencies=guard)
+    app.include_router(models_api.router, prefix="/api/models",    tags=["models"],    dependencies=guard)
+    app.include_router(admin_api.router,  prefix="/api/admin",     tags=["admin"],     dependencies=guard)
+
+    app.include_router(sessions.router,   prefix="/api/sessions",  tags=["sessions"])
+    app.include_router(chat.router,       prefix="/api/chat",      tags=["chat"])
 
     @app.get("/health", tags=["meta"])
     async def health() -> JSONResponse:
@@ -325,12 +410,13 @@ def create_app() -> FastAPI:
         <div class="card">
           <h3 data-i18n>📡 API 端点</h3>
           <ul>
+          <li><code>POST /api/auth/login</code> (<span data-i18n>后台登录</span>)</li>
           <li><code>GET  /api/config</code> · <code>PUT /api/config</code></li>
           <li><code>POST /api/documents/upload</code> · <code>POST /api/documents/process</code></li>
           <li><code>POST /api/chat/stream</code> (<span data-i18n>SSE 流式问答</span>)</li>
           <li><code>POST /api/models/test</code> (<span data-i18n>测试模型连接</span>)</li>
           </ul>
-          <p data-i18n-html>完整列表见 <a href="/docs">Swagger 文档</a>（共 23 个端点）</p>
+          <p data-i18n-html>完整列表见 <a href="/docs">Swagger 文档</a>（共 34 个端点）</p>
         </div>
 
         <div class="card">

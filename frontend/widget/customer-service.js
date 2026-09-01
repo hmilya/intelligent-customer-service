@@ -286,7 +286,10 @@
     position: 'right',          // 'left' | 'right'
     autoOpen: false,
     sessionId: null,
-    enableUpload: true,
+    // Off by default: /api/documents/* now requires an admin token, so a
+    // visitor's upload would fail with 401. Turn on only if you have put your
+    // own authenticated proxy in front of the upload endpoint.
+    enableUpload: false,
     uploadHint: null,
     // 'auto' → detect from region/language (see LOCALE CORE). Or pin one of
     // 'zh-CN' | 'zh-TW' | 'ja' | 'en'.
@@ -294,9 +297,9 @@
     // Show the in-panel language switcher. Turn off if the host page provides
     // its own and drives the widget via CustomerService.setLang().
     showLangSwitcher: true,
-    // Pull 客服名称 / 头像 / 欢迎语 / 联系方式 from GET /api/config so the
-    // admin console is the single source of truth. Anything passed to init()
-    // explicitly still wins.
+    // Pull 客服名称 / 头像 / 欢迎语 / 联系方式 from GET /api/config/public so
+    // the admin console is the single source of truth. Anything passed to
+    // init() explicitly still wins.
     useServerConfig: true,
     onReady: null,
     // Fired after the language changes (manual switch or initial detection).
@@ -1066,7 +1069,7 @@
    */
   async function applyServerConfig() {
     try {
-      const c = await api('/api/config');
+      const c = await fetchPublicConfig();
       if (!c) return;
       const fromServer = { title: c.name, avatar: c.avatar, welcome: c.welcome_message };
       for (const k in fromServer) {
@@ -1085,6 +1088,24 @@
       applyLocaleStrings();
     } catch (_) {
       // Offline or CORS-blocked — keep the defaults, don't break the widget.
+    }
+  }
+
+  /**
+   * Read the visitor-safe slice of 客服信息.
+   *
+   * `/api/config/public` returns only name / avatar / welcome / contact and is
+   * the endpoint to use: plain `/api/config` also carries API base URLs, model
+   * names and vector-DB coordinates, and now answers 401 to anyone without an
+   * admin token. The fallback exists purely so a newer widget keeps working
+   * against a backend deployed before the public route was added — there the
+   * old route is still open and still the only one that answers.
+   */
+  async function fetchPublicConfig() {
+    try {
+      return await api('/api/config/public');
+    } catch (_) {
+      return await api('/api/config');
     }
   }
 

@@ -63,8 +63,12 @@ window.fetch = async (url, opts) => {
 window.eval(src);
 // `lang` is pinned so the assertions below don't depend on the machine's
 // timezone. Detection itself is covered by the resolveLang case table.
+// `enableUpload` is passed explicitly because it now ships off by default (the
+// document endpoints require an admin token); the paperclip check below is
+// about rendering, and the default itself is asserted separately.
 window.CustomerService.init({
   apiUrl: 'http://x', useServerConfig: false, autoOpen: true, lang: 'en',
+  enableUpload: true,
 });
 await new Promise(r => setTimeout(r, 150));
 window.CustomerService.sendMessage('星空特效');
@@ -76,6 +80,9 @@ const checks = [
   ['widget 初始化',       () => !!d.querySelector('.cs-root')],
   ['CSS 完整注入',        () => (d.getElementById('cs-styles')?.textContent || '').includes('cs-md-h')],
   ['回形针为 SVG',        () => !!d.querySelector('.cs-upload svg')],
+  // Visitor upload must stay opt-in: /api/documents/* answers 401 without an
+  // admin token, so a shipped default of true would show a button that fails.
+  ['访客上传默认关闭',    () => !/^\s*enableUpload:\s*true\s*,/m.test(src)],
   ['答案已渲染 (.md)',    () => bubble?.classList.contains('md')],
   ['链接转 <a>',          () => (bubble?.querySelectorAll('a.cs-link').length || 0) >= 3],
   ['href 有效',           () => bubble?.querySelector('a.cs-link')?.getAttribute('href')?.startsWith('http')],

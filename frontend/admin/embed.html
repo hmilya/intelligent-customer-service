@@ -87,8 +87,8 @@
 
   // Only forward options the URL actually specified. Passing a default for
   // e.g. `title` would mark it as caller-supplied, and the widget would then
-  // refuse to sync 客服名称 from GET /api/config — leaving the admin console's
-  // value silently ignored.
+  // refuse to sync 客服名称 from GET /api/config/public — leaving the admin
+  // console's value silently ignored.
   const opts = { apiUrl: apiUrl, lang: lang };
   const pass = (name, key, transform) => {
     const raw = params.get(name);
@@ -100,7 +100,10 @@
   pass('avatar', 'avatar');
   pass('welcome', 'welcome');
   opts.autoOpen = params.get('autoOpen') !== '0';
-  opts.enableUpload = params.get('upload') !== '0';
+  // Opt-in, not opt-out: /api/documents/upload requires an admin token, so a
+  // visitor pressing the paperclip would only ever get a 401. `?upload=1` is
+  // left in for anyone who has put an authenticated proxy in front of it.
+  opts.enableUpload = params.get('upload') === '1';
 
   // The page is transparent by default so an oversized iframe doesn't show a
   // block of colour. `?bg=` paints one back when this page is opened directly

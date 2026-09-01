@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 管理后台语言切换自检：在真实 DOM 里跑一遍「构建 → 应用 → 切换 → 切回」。
+ * 管理后台前端自检：语言切换（构建 → 应用 → 切换 → 切回）+ 右上角账号菜单。
  *
  * 为什么需要这个：i18n-check.mjs 用正则从 HTML 里抠 msgid，只能证明「目录覆盖
  * 齐全」；它证明不了浏览器里 innerHTML 抠出来的 msgid 和目录的键真的对得上
@@ -58,6 +58,40 @@ function byMsgid(doc) {
     if (el._csMsgid !== undefined) map.set(el._csMsgid, el);
   });
   return map;
+}
+
+/* 从 index.html 的内联脚本里抠出「账号菜单」那一段。整段脚本不能整体执行
+   （一跑就 fetch 后端），但这一段是连续的，用首尾两行做锚点切出来即可。
+   锚点被改动时这里会直接抛错，而不是悄悄测了个空壳。 */
+const MENU_START = '/** Reflect the signed-in account in the top-bar avatar menu. */';
+const MENU_END = "$('miPassword').addEventListener('click', () => showAccount('password'));";
+const MENU_SRC = (() => {
+  const a = html.indexOf(MENU_START);
+  const b = html.indexOf(MENU_END);
+  if (a < 0 || b < 0) throw new Error('index.html 里找不到账号菜单那段代码，锚点是不是改了？');
+  return html.slice(a, b + MENU_END.length);
+})();
+
+/**
+ * Boot the console and wire up just the avatar menu.
+ *
+ * `showPage` / `scrollIntoView` are recorded instead of performed, so a check can
+ * assert *where* a menu item takes you. Everything else — the markup, the event
+ * listeners, the open/close logic — is the real thing.
+ */
+function userMenu(stored, user) {
+  const ctx = boot(stored);
+  const { window, doc } = ctx;
+  ctx.shown = [];
+  ctx.scrolled = [];
+  window.$ = (id) => doc.getElementById(id);
+  window.AUTH = { user: () => user || { username: 'admin', display_name: '管理员' } };
+  window.showPage = (name) => ctx.shown.push(name);
+  // jsdom has no layout, so scrollIntoView simply does not exist on Element.
+  window.Element.prototype.scrollIntoView = function () { ctx.scrolled.push(this.id); };
+  window.eval(MENU_SRC);
+  window.renderUserMenu(user || undefined);
+  return ctx;
 }
 
 const checks = [
@@ -253,6 +287,101 @@ const checks = [
     I18N.mount();
     return doc.querySelectorAll('#langMenu button').length === 4;
   }],
+
+  /* ── 右上角账号头像下拉 ─────────────────────────────────
+     和语言下拉一样是纯 DOM 行为，但它的代码在 index.html 的内联
+     <script> 里，而那段脚本一跑就会去 fetch 后端。所以这里把「账号
+     菜单」那一段单独抠出来 eval，其余依赖（$ / AUTH / showPage）
+     用桩替掉 —— 测的是真正会上线的那几行，不是复刻品。 */
+
+  ['账号头像在顶栏最右侧', () => {
+    const { doc } = boot(null);
+    const actions = doc.querySelector('.topbar-actions');
+    return actions.lastElementChild.id === 'userMenu';
+  }],
+
+  ['未渲染前头像是隐藏的（鉴权关闭时没有账号可显示）', () => {
+    const { doc } = boot(null);
+    return doc.getElementById('userMenu').hidden === true;
+  }],
+
+  ['渲染后显示昵称首字母，emoji 昵称不会被切成半个字符', () => {
+    const a = userMenu(null, { username: 'admin', display_name: '管理员' });
+    if (a.doc.getElementById('userMenu').hidden !== false) return '仍然隐藏';
+    if (a.doc.getElementById('userInitial').textContent !== '管') return '首字母错';
+    if (a.doc.getElementById('userName').textContent !== '管理员') return '昵称错';
+    const b = userMenu(null, { username: 'admin', display_name: '🐱喵' });
+    return b.doc.getElementById('userInitial').textContent === '🐱';
+  }],
+
+  ['没有昵称时副标题不重复用户名', () => {
+    const a = userMenu(null, { username: 'admin' });
+    if (a.doc.getElementById('userSub').textContent !== '') return '重复了：' + a.doc.getElementById('userSub').textContent;
+    const b = userMenu(null, { username: 'admin', display_name: '管理员' });
+    return b.doc.getElementById('userSub').textContent === 'admin';
+  }],
+
+  ['鼠标扫过头像就展开', () => {
+    const { doc, window } = userMenu();
+    doc.getElementById('userMenu').dispatchEvent(new window.MouseEvent('mouseenter'));
+    return doc.getElementById('userMenu').classList.contains('open');
+  }],
+
+  ['移开鼠标不立即收起（要跨过头像与面板之间的空隙）', () => {
+    const { doc, window } = userMenu();
+    const menu = doc.getElementById('userMenu');
+    menu.dispatchEvent(new window.MouseEvent('mouseenter'));
+    menu.dispatchEvent(new window.MouseEvent('mouseleave'));
+    return menu.classList.contains('open');
+  }],
+
+  ['点击头像开合，aria-expanded 跟着变', () => {
+    const { doc, window } = userMenu();
+    const menu = doc.getElementById('userMenu');
+    const btn = doc.getElementById('userAvatarBtn');
+    const click = () => btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    click();
+    if (!menu.classList.contains('open')) return '第一次点击没展开';
+    if (btn.getAttribute('aria-expanded') !== 'true') return 'aria-expanded 没置 true';
+    click();
+    return !menu.classList.contains('open') && btn.getAttribute('aria-expanded') === 'false';
+  }],
+
+  ['点别处、按 Esc 都会收起', () => {
+    const { doc, window } = userMenu();
+    const menu = doc.getElementById('userMenu');
+    // 每次都先确认真的展开了，否则「收起」是空断言
+    const open = () => {
+      menu.dispatchEvent(new window.MouseEvent('mouseenter'));
+      return menu.classList.contains('open');
+    };
+    if (!open()) return '压根没展开';
+    doc.body.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    if (menu.classList.contains('open')) return '点别处没收起';
+    if (!open()) return '第二次没展开';
+    doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    return !menu.classList.contains('open');
+  }],
+
+  ['个人信息 / 修改密码 分别跳到账号页的两张卡片', () => {
+    const { doc, window, shown, scrolled } = userMenu();
+    doc.getElementById('miProfile').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    if (shown.join() !== 'account') return 'showPage 没被调用：' + shown.join();
+    if (scrolled.join() !== 'cardProfile') return '滚到了：' + scrolled.join();
+    doc.getElementById('miPassword').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    if (scrolled.join() !== 'cardProfile,cardPassword') return '滚到了：' + scrolled.join();
+    // 改密码时光标直接落在「原密码」上，少一次点击
+    return doc.activeElement === doc.getElementById('acctOldPw');
+  }],
+
+  ['菜单三项都会跟着切换语言', () => {
+    const { I18N, doc } = boot(null);
+    I18N.setLang('en');
+    const text = (id) => doc.getElementById(id).textContent.trim();
+    return text('miProfile').endsWith('Profile') &&
+      text('miPassword').endsWith('Change password') &&
+      text('miLogout').endsWith('Sign out');
+  }],
 ];
 
 let pass = 0;
@@ -270,4 +399,4 @@ if (fails.length) {
   fails.forEach(([n, r]) => console.log('  ' + n + ': ' + JSON.stringify(r, null, 1)));
   process.exit(1);
 }
-console.log('✅ 管理后台语言切换正常');
+console.log('✅ 管理后台语言切换 + 账号菜单正常');

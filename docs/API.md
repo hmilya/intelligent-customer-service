@@ -8,7 +8,7 @@ Interactive Swagger UI: `/docs` · ReDoc: `/redoc`
 
 ## Meta
 
-### `GET /health`
+### `GET /health` — open
 ```json
 { "status": "ok", "name": "IntelligentCustomerService", "env": "development" }
 ```
@@ -20,21 +20,127 @@ These are served by the backend itself — no separate web server needed.
 | Path | What |
 |---|---|
 | `/` | Landing page with links to everything |
-| `/admin/` | **Admin console** — configure everything here |
-| `/admin/embed.html` | Standalone chat page |
+| `/admin/` | **Admin console** — configure everything here. Redirects to the login page when not signed in. |
+| `/admin/login.html` | Admin login. Always reachable — gating it would be a redirect loop. |
+| `/admin/embed.html` | Standalone chat page. Always reachable: this is what `/embed` iframes serve to third-party sites. |
 | `/embed` | Redirect to `/admin/embed.html`, preserving the query string. Use this in `<iframe src>`. |
 | `/widget/customer-service.js` | The embeddable widget (19 KB, zero deps) |
 | `/widget/demo/` | Embedding demo page |
 | `/docs` · `/redoc` | Swagger / ReDoc |
 
 `/embed` accepts `?api=` `&title=` `&accent=` `&position=` `&autoOpen=` `&upload=`
-so the host page can theme the widget.
+so the host page can theme the widget. `upload` is opt-in (`upload=1`): the
+document endpoints require an admin token, so a visitor's upload would 401.
 
 ---
 
-## Admin（安装向导）
+## Auth
+
+Everything the admin console writes to is behind a login. The visitor-facing
+half — chat, sessions, and the public slice of the config — is not, because the
+embedded widget runs on someone else's page with no credentials to offer.
+
+Each section below is marked **🔒 login required** or **open**.
+
+### How the token travels
+
+`POST /api/auth/login` returns a signed token. Send it back as:
+
+```
+Authorization: Bearer <access_token>
+```
+
+The same token is also set as an HttpOnly cookie (`cs_admin_token`), but *only*
+so the server can gate the `/admin/index.html` page load before any JavaScript
+runs — a browser navigation cannot attach a header. API clients should use the
+header: the console can be pointed at another origin via `?api=`, and with
+`CORS_ORIGINS=*` a cookie is not sent cross-origin at all.
+
+Tokens are signed with `APP_SECRET_KEY` and carry no server-side session. They
+are valid for `AUTH_TOKEN_TTL_HOURS` (default 168 = 7 days), and they embed a
+fingerprint of the password hash — so changing the password invalidates every
+token issued before it, on every device, with nothing to expire server-side.
+
+Missing, malformed, expired or superseded token → `401` with the standard error
+envelope.
+
+### `GET /api/auth/state` — open
+
+Whether login is required at all, and whether the default password is still in
+use. The login page reads this to decide whether to show the default-credentials
+hint. Safe to call anonymously — it discloses no account details.
+
+```json
+{ "auth_required": true, "default_password": true }
+```
+
+### `POST /api/auth/login` — open
+
+```json
+{ "username": "admin", "password": "123456" }
+```
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "expires_in": 604800,
+  "user": { "id": 1, "username": "admin", "display_name": "管理员", "email": "",
+            "is_active": true, "last_login_at": "2026-01-01T00:00:00", "created_at": "..." }
+}
+```
+
+A wrong username and a wrong password return the identical message
+(`用户名或密码错误`) and take the same time, so the endpoint cannot be used to
+discover which accounts exist.
+
+### `POST /api/auth/logout` — open
+
+Clears the cookie. There is nothing server-side to revoke, so a client holding
+the Bearer token must also drop it — which is what the console does.
+
+### `GET /api/auth/me` — 🔒 login required
+
+The signed-in account. Never includes the password hash.
+
+### `PUT /api/auth/me` — 🔒 login required
+
+```json
+{ "username": "boss", "display_name": "老板", "email": "me@example.com" }
+```
+
+Username: 3–32 characters, no spaces, must be unique. Returns a **fresh token**
+alongside the updated user, because the old one still carries the old username
+in its payload. A rename does *not* sign other devices out — tokens resolve the
+account by id, not by name, so they keep working under the new name.
+
+### `PUT /api/auth/me/password` — 🔒 login required
+
+```json
+{ "old_password": "123456", "new_password": "s3cret-enough" }
+```
+
+New password: 6–128 characters, and must differ from the current one. A wrong
+`old_password`, a too-short new one, or reusing the current password all come
+back as `422` `validation_error`.
+
+Also returns a **fresh token**. This is the one operation that *does* sign other
+devices out: the token carries a fingerprint of the password hash, so every
+token minted before the change stops resolving — including the one the caller
+sent, which is why a replacement comes back in the same response.
+
+### `GET /api/auth/ping` — 🔒 login required
+
+A cheap "is my token still good?" check. Returns `{ "ok": true }`.
+
+---
+
+## Admin（安装向导）— 🔒 login required
 
 这两个端点驱动管理后台顶部的「首次运行向导」横幅。
+
+`GET /api/admin/status` 的 `details` 里多了一个 `default_password_in_use`，
+后台据此显示「请尽快修改默认密码」横幅。`POST /api/admin/init` 除了建表和写入
+默认配置，还会创建初始管理员账号。
 
 ### `GET /api/admin/status`
 
@@ -90,13 +196,13 @@ curl -X POST http://localhost:8000/api/admin/init
 
 ## Config
 
-### `GET /api/config`
+### `GET /api/config` — 🔒 login required
 Returns the current customer-service config. All secrets (`model_api_key`,
 `embedding.api_key`, `vector_db.milvus_token`) come back **masked** as
 `****1234`. When no DB row exists yet, the `.env` values are surfaced instead
 so the admin form isn't blank.
 
-### `PUT /api/config`
+### `PUT /api/config` — 🔒 login required
 Update config. Send the full object (do a `GET` first, spread, then modify).
 
 **Secret handling**: leaving a secret blank *or* echoing back the `****1234`
@@ -155,7 +261,26 @@ admin UI can save other fields without ever seeing the real key.
 Changes take effect on the next request — no restart needed. (Switching
 `vector_db.provider` does require a restart plus re-ingesting documents.)
 
-### `GET /api/config/providers`
+### `GET /api/config/public` — open
+
+The visitor-safe slice of 客服信息, and the only config endpoint the embedded
+widget touches:
+
+```json
+{
+  "name": "智能客服小助手",
+  "avatar": "",
+  "welcome_message": "您好，请问有什么可以帮您？",
+  "contact_phone": "",
+  "contact_email": ""
+}
+```
+
+Five fields, nothing else. `GET /api/config` also carries API base URLs, model
+names, RAG parameters and vector-database coordinates — which is exactly why it
+requires a login and this one exists.
+
+### `GET /api/config/providers` — 🔒 login required
 
 Returns the vendor registry (15 entries). Each entry:
 
@@ -191,7 +316,11 @@ configs saved by older versions keep working.
 
 ---
 
-## Documents
+## Documents — 🔒 login required
+
+All of them. Ingesting into the knowledge base is an operator task, so the
+widget ships with `enableUpload: false`: a visitor pressing an upload button
+would only ever see a `401`.
 
 ### `POST /api/documents/upload`
 Multipart upload. Accepts `.txt`, `.docx`, `.xlsx`, `.pdf` (max 20 MB).
@@ -278,7 +407,9 @@ At most 60 chunks are returned; `truncated` says whether more exist.
 
 ---
 
-## Chat
+## Chat — open
+
+No login: this is what the embedded widget calls from a stranger's browser.
 
 ### `POST /api/chat`
 Non-streaming RAG chat.
@@ -344,7 +475,10 @@ curl -N -X POST http://localhost:8000/api/chat/stream \
 
 ---
 
-## Sessions
+## Sessions — open
+
+No login, for the same reason as Chat — the widget creates and resumes its own
+session without any credential.
 
 ### `POST /api/sessions`
 Create a session. Body: `{user_id?, title?, meta?}`.
@@ -363,7 +497,9 @@ Get all messages in a session.
 
 ---
 
-## Models
+## Models — 🔒 login required
+
+All of them. These read and probe your API keys and vector-database endpoints.
 
 ### `GET /api/models`
 Returns both LLM providers and vector DB providers.

@@ -4,5 +4,6 @@ from .config import CSConfig
 from .document import Document
 from .message import Message
 from .session import Session as ChatSession
+from .user import AdminUser
 
-__all__ = ["Base", "CSConfig", "ChatSession", "Document", "Message"]
+__all__ = ["AdminUser", "Base", "CSConfig", "ChatSession", "Document", "Message"]

@@ -53,6 +53,17 @@ class NotFoundError(AppError):
     code = "not_found"
 
 
+class AuthError(AppError):
+    """Not signed in, or the token is expired / forged / revoked.
+
+    The admin console treats any 401 as "bounce to the login page", so this must
+    stay 401 and must not be reused for "signed in but not allowed".
+    """
+
+    status_code = 401
+    code = "unauthorized"
+
+
 class ValidationError(AppError):
     status_code = 422
     code = "validation_error"

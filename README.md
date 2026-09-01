@@ -7,7 +7,7 @@
 
 ![status](https://img.shields.io/badge/status-可用-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-103%20backend%20%2B%2031%20widget%20%2B%2024%20admin-brightgreen)
+![tests](https://img.shields.io/badge/tests-174%20backend%20%2B%2032%20widget%20%2B%2071%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **仓库地址**
@@ -22,6 +22,7 @@
 ## 目录
 
 - [三步跑起来](#三步跑起来)
+- [登录与账号](#登录与账号)
 - [效果预览](#效果预览)
 - [核心特性](#核心特性)
 - [页面导览](#页面导览)
@@ -83,6 +84,8 @@ python run.py
 
 浏览器访问 **http://localhost:8000/admin/**
 
+先登录：默认账号 **`admin`** / 密码 **`123456`**（首次启动自动创建，详见 [登录与账号](#登录与账号)）。
+
 | 顺序 | 做什么 |
 |---|---|
 | 1️⃣ | 页面顶部若出现黄色横幅 → 点 **「🚀 一键初始化」**（建表 + 建目录 + 写默认配置） |
@@ -90,6 +93,7 @@ python run.py
 | 3️⃣ | 同页 **「🧬 向量模型」** → **「⬆︎ 复用对话模型的 Key / URL」** → **「🔌 测试并探测维度」** |
 | 4️⃣ | 进 **「知识文档」** → 拖入 txt/md/docx/xlsx/pdf → 自动解析入库 |
 | 5️⃣ | 进 **「聊天预览」** → 直接提问验证 |
+| 6️⃣ | 进 **「用户信息」** → **改掉默认密码**（页面顶部的 🔐 横幅会一直提醒你） |
 
 **完全不需要**编辑 `.env`、执行 `init_db.py` 或任何脚本。
 
@@ -106,6 +110,79 @@ python run.py --install          # 缺依赖时自动安装
 
 也支持标准 uvicorn：`uvicorn src.main:app --reload --port 8000`
 </details>
+
+---
+
+## 登录与账号
+
+管理后台需要登录。未登录时访问 `/admin/`、`/admin` 或 `/admin/index.html`，都会 **302** 跳到
+登录页 `/admin/login.html`，并带上 `?next=` 记住你原本要去的地址，登录后自动跳回。
+
+| 项目 | 值 |
+|---|---|
+| 登录页 | `/admin/login.html` |
+| 默认账号 | `admin` / `123456` —— **首次启动时自动创建**，且只在管理员表 `cs_admin_user` 为空时写入 |
+| 登录有效期 | 7 天（`AUTH_TOKEN_TTL_HOURS=168`） |
+| 默认密码提醒 | 仍在用默认密码时，后台顶部常驻一条 🔐 横幅 |
+
+顶栏最右侧是一个圆形头像（取昵称首字母），鼠标扫过或点击展开下拉：**个人信息**、**修改密码**、**退出登录**。前两项直接跳到「用户信息」页对应的那张卡片。
+
+**两个页面故意不需要登录**：
+
+- `/admin/login.html` —— 否则会陷入跳转死循环
+- `/admin/embed.html` —— 它是 `/embed` 的实际承载页，被嵌到第三方网站里，访客不可能有后台账号
+
+### 用户信息页
+
+左侧菜单「客服信息」下面新增 **「用户信息」**，两张卡片：
+
+| 卡片 | 字段 |
+|---|---|
+| **账号资料** | 用户名 / 昵称 / 邮箱 |
+| **修改密码** | 原密码 / 新密码 / 确认新密码 |
+
+- **设计上就是单账号**，不提供多用户管理。
+- 用户名 **3~32 个字符、不能含空格**；密码**至少 6 位**。
+- 改密码会**立即让其他所有设备的登录失效**（token 里带着密码哈希的指纹）；发起修改的这台设备会拿到一枚新 token，不会被踢下线。
+- **改用户名不会踢任何设备下线** —— token 认的是账号的数字 id，不是用户名，改名前签发的 token 照样有效。`PUT /api/auth/me` 同样返回一枚新 token，但只是为了让客户端手里那枚不再带着过期的用户名。
+- 原密码填错、新密码太短、或新密码与当前密码相同，都返回 **`422`（`validation_error`）**。
+
+### 哪些接口需要登录
+
+| 需要登录（管理员 token） | 说明 |
+|---|---|
+| `GET` `PUT` `/api/config` | 完整配置读写 |
+| `GET` `/api/config/providers` | 厂商注册表 |
+| `/api/documents/*` | list · parsers · upload · process · split-preview · DELETE |
+| `/api/models/*` | list · vector-db · available · test · test-embedding |
+| `/api/admin/*` | status · init · version |
+| `GET` `PUT` `/api/auth/me`、`PUT` `/api/auth/me/password` | 当前账号读写 |
+
+| 公开（无需登录） | 说明 |
+|---|---|
+| `GET` `/health` | 健康检查 |
+| `GET` `/api/config/public` | 组件展示用的最小配置 |
+| `GET` `/api/auth/state` · `POST` `/api/auth/login` · `POST` `/api/auth/logout` | 登录本身 |
+| `/api/sessions/*` | 会话列表 / 历史 / 关闭 |
+| `POST` `/api/chat`、`POST` `/api/chat/stream` | 问答与流式问答 |
+
+留公开的原因很直接：嵌到别人网站上的组件、以及后台里的「聊天预览」「嵌入指南」，
+都必须能被**匿名访客**跑通。
+
+### `/api/config` 与 `/api/config/public`
+
+新增的 `GET /api/config/public` 只返回 `name`、`avatar`、`welcome_message`、
+`contact_phone`、`contact_email` 五项，组件现在读的是它。
+而 `GET /api/config` 还带着 API 地址、模型名和向量库坐标 —— 这正是它现在必须登录才能读的原因。
+
+### 凭证是怎么传的
+
+主通道是 `Authorization: Bearer <token>`：后台可以用 `?api=` 指向另一个源，而
+`CORS_ORIGINS=*` 时 Cookie 根本没法跨源发送。同时也会下发一枚 HttpOnly Cookie
+`cs_admin_token`，但它只有一个用途 —— 让服务端在任何 JavaScript 执行之前就能拦住
+`/admin/index.html` 这个页面请求。
+
+> ⚠️ 部署后**第一件事**：改掉默认密码，并设置 `APP_SECRET_KEY`。
 
 ---
 
@@ -160,13 +237,14 @@ python run.py --install          # 缺依赖时自动安装
 | **🪟 可嵌入组件** | 单文件 JS（零依赖、免构建），内置 Markdown 渲染 + 链接可点击 |
 | **📲 跨平台** | 网站 / 微信小程序 `web-view` / Electron / Tauri / iOS / Android |
 | **⚙️ 全网页配置** | 模型、向量库、RAG 参数、客服信息全部页面可改，改完即生效无需重启 |
+| **🔐 后台登录** | 管理后台需登录（默认 `admin` / `123456`，7 天有效期），配置类与文档类接口全部受保护；聊天与嵌入组件仍对访客公开 |
 | **🌐 四语言 · 离线判断** | 简中 / 繁中 / 日语 / 英语；**按时区判断地区，不查 IP，内网离线同样有效**；可手动切换，切完 AI 回答也跟着换语言 |
 
 ---
 
 ## 页面导览
 
-打开 `/admin/` 后左侧 8 个菜单：
+打开 `/admin/` 后左侧 9 个菜单：
 
 | 菜单 | 作用 |
 |---|---|
@@ -176,10 +254,11 @@ python run.py --install          # 缺依赖时自动安装
 | 🔍 **RAG 设置** | **回答策略开关** + Top-K/阈值 + 切分策略；带**切分预览** |
 | 📄 **知识文档** | 拖拽上传、**实时入库进度**、失败可续传、删除 |
 | 💬 **客服信息** | 客服名称、头像、欢迎语、联系方式（组件自动读取） |
+| 👤 **用户信息** | 后台登录账号的资料与密码（单账号，见 [登录与账号](#登录与账号)） |
 | 🪟 **聊天预览** | iframe 内嵌真实组件，直接测 RAG 问答 |
 | 🌐 **嵌入指南** | 三种嵌入方式的代码，一键复制 |
 
-页面右上角还有四个常驻工具：
+页面右上角还有五个常驻工具：
 
 | 工具 | 说明 |
 |---|---|
@@ -187,6 +266,7 @@ python run.py --install          # 缺依赖时自动安装
 | 🌐 **语言** | 切换后台界面语言（简中 / 繁中 / 日语 / 英语）。菜单里每一项都用它自己的文字写，看不懂当前语言的人也能找到自己那项 |
 | ⬆︎ **检测更新** | 比对当前版本与 GitHub 最新 Release，有新版时按钮上出现红点 |
 | ☕ **打赏支持** | 微信 / 支付宝 / QQ 赞赏码 |
+| 👤 **当前账号** | 最右侧的圆形头像，悬停或点击展开：个人信息 / 修改密码 / 退出登录 |
 
 > **检测更新需要先配置仓库**：在 `backend/.env` 里加 `APP_GITHUB_REPO=owner/repo`。
 > 未配置时按钮会给出配置指引，不会报错。
@@ -194,6 +274,34 @@ python run.py --install          # 缺依赖时自动安装
 > 它**只检测不改代码** —— 发现新版会展示更新说明和更新命令，由你决定何时执行。
 > 自动 `git pull` 会覆盖本地未提交的修改，还可能因依赖变更导致服务起不来，
 > 不适合放在一个按钮后面。
+
+### 桌面端布局与滚动条
+
+宽度 ≥ 721px 时，**左侧菜单和顶栏固定不动，只有内容区滚动**：`body` 关掉整页滚动，
+`.main` 自己 `overflow-y: auto`，顶栏用 `position: sticky` 钉在内容区顶部。
+
+滚动条是自绘的，不用系统默认样式：
+
+| 特性 | 做法 |
+|---|---|
+| 又细又圆 | 10px 的沟槽里，用 `3px solid transparent` 边框加 `background-clip: content-box` 夹出一条 4px 的胶囊 —— 视觉上细，命中区还是 10px |
+| 两端椭圆 | `border-radius: 999px` |
+| 静止时隐藏 | 默认 `background-color: transparent`；滚动中（脚本加 `.is-scrolling`）或鼠标停在内容区时淡入，停止滚动约 1 秒后淡出 |
+| 深色侧栏 | 侧栏上单独用白色半透明，灰色在深底上看不见 |
+
+有两个坑值得记一笔，都是排查过的：
+
+- **`scrollbar-width` 会把 `::-webkit-scrollbar` 整套废掉。** 只要
+  `scrollbar-width` 或 `scrollbar-color` 取了非 `auto` 的值，Chrome 就完全忽略
+  `::-webkit-scrollbar` 伪元素，退回原生滚动条（macOS 上是零宽的覆盖式），
+  上面的胶囊白写了。两套机制互斥，所以标准属性被锁进
+  `@supports not selector(::-webkit-scrollbar)` —— 该选择器在 Chrome/Safari 为真、
+  Firefox 为假，正好只把标准属性喂给 Firefox。
+- **sticky 钉的是外边距框，不是边框框。** 顶栏用 `margin-top: -32px` 撑到 `.main`
+  的内边距之外，此时写 `top: 0` 会把边框框推到 y=32，顶上留出 32px 没有背景的缝，
+  滚动的内容正好从缝里露出来。要写 `top: -32px`。
+
+窄屏（< 721px）不套这套：侧栏改为抽屉式，整页正常滚动。
 
 ---
 
@@ -235,7 +343,7 @@ intelligent-customer-service/
 │   ├── docker-compose.yml            MySQL + Redis + Qdrant + Milvus
 │   ├── src/
 │   │   ├── main.py                   FastAPI app factory
-│   │   ├── api/                      admin · chat · config · documents · models · sessions
+│   │   ├── api/                      admin · auth · chat · config · documents · models · sessions
 │   │   ├── services/                 document · rag · llm · embedding · session
 │   │   ├── adapters/                 base · openai · anthropic · factory
 │   │   ├── vector_store/             base · chroma · qdrant · milvus · factory
@@ -245,10 +353,11 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter（结构感知）· sse · hash · obfuscation
-│   │   └── tests/                    103 个测试
+│   │   └── tests/                    174 个测试（含 71 项登录鉴权）
 │   ├── scripts/
 │   │   ├── init_db.py                建表（一键初始化已覆盖，一般不用手跑）
 │   │   ├── check_env.py              依赖/配置自检
+│   │   ├── reset_admin_password.py   ← 忘记后台密码时重置
 │   │   ├── ingest_docs.py            批量导入
 │   │   └── ingest_retry.py           ← 大知识库自动重试入库
 │   └── samples/                      示例知识文档
@@ -257,14 +366,16 @@ intelligent-customer-service/
 │   │   └── locale.js                 ← 离线地区判断（时区优先，语言兜底）
 │   ├── admin/
 │   │   ├── index.html                管理后台
+│   │   ├── login.html                ← 登录页（无需登录即可访问）
 │   │   ├── embed.html                独立聊天页（预览 / iframe 用）
 │   │   ├── i18n.js                   ← 四语言词条（简中为源语言，无需词条）
 │   │   ├── i18n-check.mjs            ← 词条覆盖检查（缺翻译即失败）
 │   │   ├── mark-i18n.py              ← 给 HTML 打 data-i18n 标记（可重跑）
-│   │   └── selftest.mjs              ← 后台语言切换自检（24 项断言）
+│   │   ├── selftest.mjs              ← 后台自检：语言切换 + 账号菜单（34 项断言）
+│   │   └── login-selftest.mjs        ← 登录页自检（37 项断言）
 │   └── widget/
 │       ├── customer-service.js       嵌入组件（零依赖）
-│       ├── selftest.mjs              ← 组件自检（31 项断言）
+│       ├── selftest.mjs              ← 组件自检（32 项断言）
 │       └── demo/                     嵌入演示
 └── docs/
     ├── API.md · DEPLOYMENT.md · EMBED_GUIDE.md
@@ -398,7 +509,8 @@ ARK 有两个**计费不同**的产品，务必选对：
     apiUrl: 'http://localhost:8000',
     accent: '#0a66c2',
     position: 'right',      // 'left' | 'right'
-    enableUpload: true,
+    // 默认关闭：文档接口需要管理员登录
+    enableUpload: false,
   });
 </script>
 ```
@@ -441,8 +553,8 @@ ARK 有两个**计费不同**的产品，务必选对：
 | `accent` | `#0a66c2` | 主题色 |
 | `position` | `right` | 浮动按钮位置 |
 | `autoOpen` | `false` | 加载后自动展开 |
-| `enableUpload` | `true` | 显示文件上传按钮 |
-| `useServerConfig` | `true` | 是否从 `/api/config` 拉取客服信息 |
+| `enableUpload` | `false` | 显示文件上传按钮（见下方说明） |
+| `useServerConfig` | `true` | 是否从 `/api/config/public` 拉取客服信息 |
 | `sessionId` | `null` | 恢复历史会话 |
 | `lang` | `auto` | `auto` / `zh-CN` / `zh-TW` / `ja` / `en`，见下方「多语言」 |
 | `onReady` | `null` | 初始化完成回调 |
@@ -489,10 +601,10 @@ CustomerService.setLang('ja') / getLang()
 强制指定语言：组件传 `lang: 'ja'`，`/embed` 或后台加 `?lang=ja`，接口传 `{"lang":"ja"}`。
 
 ```bash
-# 三处检查都必须绿：后端 103 项、组件 31 项、后台语言切换 24 项，加词条覆盖检查
+# 四处检查都必须绿：后端 174 项、组件 32 项、后台 34 + 登录页 37 项，加词条覆盖检查
 cd backend && .venv/bin/pytest src/tests -q
 cd frontend/widget && npm i && node selftest.mjs
-cd frontend/admin && node selftest.mjs && node i18n-check.mjs
+cd frontend/admin && node selftest.mjs && node login-selftest.mjs && node i18n-check.mjs
 ```
 
 改了后台界面上的中文？`node i18n-check.mjs` 会告诉你哪几条缺翻译 ——
@@ -505,13 +617,23 @@ cd frontend/admin && node selftest.mjs && node i18n-check.mjs
 
 Swagger：**http://localhost:8000/docs** · 详细文档：[docs/API.md](docs/API.md)
 
+哪些接口需要带管理员 token、哪些完全公开，见 [哪些接口需要登录](#哪些接口需要登录)。
+
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | `GET` | `/health` | 健康检查 |
+| `GET` | `/api/auth/state` | 是否开启鉴权、是否仍在用默认密码（公开） |
+| `POST` | `/api/auth/login` | 登录，`{username, password}` → `{access_token, expires_in, user}` |
+| `POST` | `/api/auth/logout` | 退出登录（清 Cookie） |
+| `GET` | `/api/auth/me` | 当前账号信息 |
+| `PUT` | `/api/auth/me` | 修改用户名 / display_name / email，返回新 token |
+| `PUT` | `/api/auth/me/password` | 修改密码，`{old_password, new_password}`，返回新 token |
+| `GET` | `/api/auth/ping` | 轻量校验 token 是否还有效 |
 | `GET` | `/api/admin/status` | 安装状态检查（页面横幅用） |
 | `POST` | `/api/admin/init` | 一键初始化（幂等） |
 | `GET` | `/api/admin/version` | 检测更新（比对 GitHub 最新 Release） |
 | `GET` `PUT` | `/api/config` | 读取 / 更新全部配置 |
+| `GET` | `/api/config/public` | 组件展示用的公开配置（名称 / 头像 / 欢迎语 / 联系方式） |
 | `GET` | `/api/config/providers` | 厂商注册表 |
 | `POST` | `/api/documents/upload` | 上传文档（multipart） |
 | `POST` | `/api/documents/process` | 切分 + 向量化 + 入库（支持续传） |
@@ -535,7 +657,8 @@ Swagger：**http://localhost:8000/docs** · 详细文档：[docs/API.md](docs/AP
 | 路径 | 说明 |
 |---|---|
 | `/` | 首页（快捷入口） |
-| `/admin/` | **管理后台** |
+| `/admin/` | **管理后台**（未登录会跳登录页） |
+| `/admin/login.html` | 登录页 |
 | `/embed` | 独立聊天页（iframe 用），保留查询参数 |
 | `/widget/customer-service.js` | 嵌入组件 |
 | `/widget/demo/` | 嵌入演示 |
@@ -582,8 +705,15 @@ event: error     → 出错，{message}
 | | `RAG_RELEVANCE_THRESHOLD` | `0.76` |
 | | `RAG_MAX_CONTEXT_CHARS` | `8000` |
 | CORS | `CORS_ORIGINS` | `*` |
+| 登录 | `AUTH_ENABLED` | `true`（置 `false` 会**关掉全部鉴权**，只适合内网上的一次性演示） |
+| | `AUTH_TOKEN_TTL_HOURS` | `168`（7 天） |
+| | `AUTH_COOKIE_NAME` | `cs_admin_token` |
+| | `AUTH_DEFAULT_USERNAME` / `AUTH_DEFAULT_PASSWORD` | `admin` / `123456` |
 
 </details>
+
+> 🔑 **`APP_SECRET_KEY` 现在用于签发登录 token，部署前必须改掉。**
+> 非 development 环境下仍是默认值时，后端启动会打印一条告警。
 
 > ⚠️ **`backend/data/app.db` 里存着你在页面填的 API Key**（base64 混淆，等同明文）。
 > 已在 `.gitignore` 中排除，**不要提交到公开仓库**。
@@ -604,6 +734,26 @@ python run.py --install
 ```
 
 PyCharm 用户注意 Run Configuration 里选的解释器是否就是你装依赖的那个。
+</details>
+
+<details>
+<summary><b>忘记后台密码了</b></summary>
+
+在 `backend/` 目录下跑重置脚本：
+
+```bash
+cd backend
+python -m scripts.reset_admin_password
+```
+
+它会提示输入新密码，输入时**不回显**。另外两种用法：
+
+```bash
+python -m scripts.reset_admin_password --list                      # 看看有哪些账号
+python -m scripts.reset_admin_password --username admin --password 新密码   # 非交互式
+```
+
+重置后**所有设备都会被登出**，需要用新密码重新登录。
 </details>
 
 <details>
@@ -707,18 +857,21 @@ location /api/chat/stream {
 ## 开发与测试
 
 ```bash
-# 后端：103 个测试
+# 后端：174 个测试（其中 71 项是登录鉴权）
 cd backend
 python -m pytest src/tests/ -q
 
-# 前端组件自检：31 项断言，在真实 DOM 里跑完整 SSE 流程 + 地区检测
+# 前端组件自检：32 项断言，在真实 DOM 里跑完整 SSE 流程 + 地区检测
 cd frontend/widget
 npm install       # 装 jsdom
 npm test
 
-# 管理后台语言切换自检：24 项断言（jsdom 借用 widget 装好的那份）
+# 管理后台自检：34 项断言，语言切换 + 右上角账号菜单（jsdom 借用 widget 装好的那份）
 cd frontend/admin
 node selftest.mjs
+
+# 登录页自检：37 项断言，覆盖登录成功/失败、开放重定向防护、?api= 换后端
+node login-selftest.mjs
 
 # 词条覆盖检查：界面上每条中文都必须有三种译文
 node i18n-check.mjs
@@ -727,6 +880,9 @@ node i18n-check.mjs
 cd backend && python scripts/check_env.py
 ```
 
+> 后端 174 个测试里有 173 个开箱即绿；剩下那一个在登录功能之前就是红的，
+> 原因是可选依赖 `chromadb` 没装。
+
 > 组件自检值得一说：`node -c` 只做语法检查，检不出「模板字符串被内部反引号截断」
 > 这类会让整个 widget 运行时崩溃的错误。`npm test` 会真正执行渲染路径。
 >
@@ -734,6 +890,12 @@ cd backend && python scripts/check_env.py
 > 证明不了浏览器里 `innerHTML` 抠出来的键真的对得上（空白、HTML 实体差一点就查不到），
 > 也证明不了连切两次语言还能切回来。`selftest.mjs` 用 jsdom 加载真正的
 > `index.html` 走真正的 `apply()`，这两类 bug 都是它抓出来的。
+>
+> `login-selftest.mjs` 有个绕不开的坎：jsdom 的 `location.replace` 是只读的自有属性，
+> 而登录成功后页面就是靠它跳转的。解法是不让 jsdom 执行页面脚本，把内联脚本抠出来
+> 包进一个以 `location` 为形参的函数里再 eval —— 形参遮蔽掉全局的 `location`，
+> 跳转目标就成了可断言的值。开放重定向防护（`?next=//evil.com` 必须落回 `/admin/`）
+> 就是这么测的。
 
 ---
 
@@ -744,7 +906,7 @@ cd backend && python scripts/check_env.py
 
 ### 部署前的三个关键认识
 
-1. **只有 Nginx 该暴露公网** —— 应用绑 `127.0.0.1:8000`，管理后台没有登录，直接对外等于把 API Key 配置页开放给所有人
+1. **只有 Nginx 该暴露公网** —— 应用绑 `127.0.0.1:8000`，管理后台虽然有登录，但默认密码没改就对外，等于把 API Key 配置页开放给所有人
 2. **SSE 必须在 Nginx 关闭缓冲** —— 否则回答不会逐字出现，而是等全部生成完才一次性蹦出来（最常见的坑）
 3. **API Key 存在 `backend/data/app.db`**（base64 混淆，等同明文）—— 已被 `.gitignore` 排除，别提交
 
@@ -837,15 +999,18 @@ sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d 你的域名 -d www.你的域名
 ```
 
-### 保护管理后台（三选一）
+### 保护管理后台
 
-管理后台**没有内置登录**，按安全级别从高到低：
+**第一件事：登录后台 →「用户信息」改掉默认密码 `admin` / `123456`，并把 `APP_SECRET_KEY` 换成随机值。**
+只做完这两步，后台就已经不是敞开的了。
+
+要再加一层防护，按安全级别从高到低三选一：
 
 | 方式 | 做法 |
 |---|---|
 | **SSH 端口转发**（推荐） | 不对外开放；`ssh -L 8000:127.0.0.1:8000 user@服务器`，本地打开 `localhost:8000/admin/` |
 | **IP 白名单** | Nginx 里 `/admin/` 加 `allow 你的IP; deny all;` |
-| **Basic 认证** | `htpasswd` + `auth_basic`，同时保护 `/api/config` `/api/admin` 写接口 |
+| **Basic 认证** | `htpasswd` + `auth_basic`，注意别把 `/admin/embed.html` 一起挡了（嵌到第三方站点的聊天页走的是它） |
 
 ### 首次上线验证
 
@@ -853,8 +1018,10 @@ sudo certbot --nginx -d 你的域名 -d www.你的域名
 # 服务活着
 curl -fsS https://你的域名/health
 
-# 模型连通（先在管理后台填好 Key）
-curl -sS -X POST https://你的域名/api/models/test -H 'Content-Type: application/json' -d '{}'
+# 模型连通（先在管理后台填好 Key；该接口需要登录，token 从 /api/auth/login 拿）
+curl -sS -X POST https://你的域名/api/models/test \
+     -H 'Content-Type: application/json' \
+     -H "Authorization: Bearer $TOKEN" -d '{}'
 
 # SSE 真的是流式（token 应逐条出现，不是一次性吐出）
 curl -N -sS -X POST https://你的域名/api/chat/stream \
@@ -863,10 +1030,12 @@ curl -N -sS -X POST https://你的域名/api/chat/stream \
 
 ### 安全清单
 
-- [ ] `APP_SECRET_KEY` 换成随机值
+- [ ] **后台默认密码 `admin` / `123456` 已改掉**（上线后第一件事）
+- [ ] `APP_SECRET_KEY` 换成随机值（它签发登录 token）
+- [ ] `AUTH_ENABLED` 保持 `true`
 - [ ] `APP_ENV=production` 且 `APP_DEBUG=false`（debug 会在报错时泄露栈信息）
 - [ ] `CORS_ORIGINS` 限定为实际域名（不要留 `*`）
-- [ ] 管理后台已加访问控制（上面三选一）
+- [ ] 管理后台已加额外访问控制（上面三选一）
 - [ ] 应用只监听 `127.0.0.1`；数据库/Redis/向量库不映射到公网端口
 - [ ] 启用 HTTPS
 - [ ] 不用 root 跑应用

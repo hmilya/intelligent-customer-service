@@ -13,7 +13,8 @@ Service backend.
     title: '智能客服小助手',
     accent: '#0a66c2',
     position: 'right',      // 'left' | 'right'
-    enableUpload: true,
+    // Off by default: /api/documents/* requires an admin token.
+    enableUpload: false,
   });
 </script>
 ```
@@ -30,11 +31,21 @@ Service backend.
 | `accent`       | string              | `#0a66c2`                        | Theme accent color |
 | `position`     | `'left' \| 'right'` | `right`                          | Float-button corner |
 | `autoOpen`     | boolean             | `false`                          | Auto-open on load |
-| `enableUpload` | boolean             | `true`                           | Show file-upload button |
+| `enableUpload` | boolean             | `false`                          | Show file-upload button (see note below) |
 | `sessionId`    | string \| null      | `null`                           | Resume a prior session |
 | `lang`         | string              | `auto`                           | `auto` / `zh-CN` / `zh-TW` / `ja` / `en` — see [Language](#language) |
 | `onReady`      | function            | `null`                           | Called after init |
 | `onLangChange` | function            | `null`                           | Called after the visitor switches language |
+
+### Visitor file upload
+
+`enableUpload` ships **off**. The upload button posts to `/api/documents/upload`,
+which now requires an admin token — a visitor pressing it would only ever see a
+401. Knowledge-base ingestion is an operator task, done from the admin console.
+
+Turn it back on only if you have put your own authenticated proxy in front of
+the document endpoints and are prepared to have anonymous visitors write into
+your knowledge base.
 
 ## Public API
 

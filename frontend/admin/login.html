@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title data-i18n>登录 · 智能客服管理后台</title>
+<!-- Same offline locale detection + catalogs as the console, so the login page
+     is already in the visitor's language on first paint. -->
+<script src="/shared/locale.js"></script>
+<script src="i18n.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    /* Echoes the console's dark sidebar so the two pages read as one product. */
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    color: #1a1a1a;
+    padding: 24px;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 380px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+  }
+  .brand { text-align: center; margin-bottom: 24px; }
+  .brand .logo { font-size: 34px; line-height: 1; }
+  .brand h1 { font-size: 18px; margin: 12px 0 4px; color: #111827; }
+  .brand p { font-size: 13px; color: #6b7280; margin: 0; }
+
+  .form-field { margin-bottom: 16px; }
+  .form-field label { display: block; font-size: 13px; color: #374151; margin-bottom: 6px; font-weight: 500; }
+  .form-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border .15s, box-shadow .15s;
+  }
+  .form-field input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+  /* Password box + its reveal toggle */
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 44px; }
+  .pw-toggle {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    border: 0;
+    background: none;
+    cursor: pointer;
+    padding: 6px;
+    color: #9ca3af;
+    line-height: 0;
+    border-radius: 4px;
+  }
+  .pw-toggle:hover { color: #4b5563; background: #f3f4f6; }
+
+  .btn-login {
+    width: 100%;
+    padding: 11px;
+    border: 0;
+    border-radius: 6px;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 15px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s;
+    margin-top: 4px;
+  }
+  .btn-login:hover:not(:disabled) { background: #2563eb; }
+  .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .alert {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .alert.show { display: block; }
+  .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .alert-info  { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+
+  .footnote { margin-top: 20px; text-align: center; font-size: 12px; color: #9ca3af; line-height: 1.7; }
+  .footnote code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; color: #4b5563; }
+  .footnote a { color: #3b82f6; text-decoration: none; }
+
+  .spinner {
+    display: inline-block;
+    width: 13px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Language switcher — same markup ids i18n.js wires up in the console. */
+  .cs-lang { position: fixed; top: 18px; right: 18px; }
+  .cs-lang-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.1);
+    color: #e5e7eb;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .cs-lang-btn:hover { background: rgba(255,255,255,0.18); }
+  .cs-lang-menu {
+    display: none;
+    position: absolute; top: 100%; right: 0; margin-top: 6px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+    overflow: hidden; min-width: 130px;
+  }
+  .cs-lang-menu.open { display: block; }
+  .cs-lang-menu button {
+    display: block; width: 100%; text-align: left;
+    padding: 8px 12px; border: 0; background: none;
+    font-size: 13px; font-family: inherit; color: #374151; cursor: pointer;
+  }
+  .cs-lang-menu button:hover { background: #f3f4f6; }
+  .cs-lang-menu button.active { color: #2563eb; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="cs-lang">
+  <button class="cs-lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false"
+          title="切换语言 / Language" data-i18n-attr="title">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <span id="langLabel">简体中文</span>
+  </button>
+  <div class="cs-lang-menu" id="langMenu"></div>
+</div>
+
+<div class="login-card">
+  <div class="brand">
+    <div class="logo">🤖</div>
+    <h1 data-i18n>智能客服管理后台</h1>
+    <p data-i18n>请登录后继续</p>
+  </div>
+
+  <div class="alert alert-error" id="loginError"></div>
+  <div class="alert alert-info" id="defaultHint"></div>
+
+  <form id="loginForm" autocomplete="on">
+    <div class="form-field">
+      <label for="username" data-i18n>用户名</label>
+      <input type="text" id="username" name="username" autocomplete="username"
+             autocapitalize="none" spellcheck="false" required
+             placeholder="请输入用户名" data-i18n-attr="placeholder" />
+    </div>
+
+    <div class="form-field">
+      <label for="password" data-i18n>密码</label>
+      <div class="pw-wrap">
+        <input type="password" id="password" name="password" autocomplete="current-password"
+               required placeholder="请输入密码" data-i18n-attr="placeholder" />
+        <button type="button" class="pw-toggle" id="pwToggle"
+                title="显示 / 隐藏密码" data-i18n-attr="title" aria-label="显示密码">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-login" id="loginBtn" data-i18n>登 录</button>
+  </form>
+
+  <div class="footnote">
+    <span data-i18n>API 地址</span>: <code id="apiUrlDisplay">http://localhost:8000</code>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/**
+ * The login page is intentionally standalone: no shared app script, one fetch.
+ * If the console's JS ever breaks, you can still sign in.
+ */
+var T = (window.CSAdminI18n && window.CSAdminI18n.t) || function (s) { return s; };
+
+// ---------------------------------------------------------------------------
+//  Where is the backend?
+// ---------------------------------------------------------------------------
+// Same resolution order as index.html, and the ?api= value has to survive the
+// hop to the console — otherwise you log in against host A and land on a page
+// talking to host B.
+var params = new URLSearchParams(location.search);
+var API_URL = (params.get('api') || localStorage.getItem('cs_admin_api') || location.origin)
+  .replace(/\/+$/, '');
+localStorage.setItem('cs_admin_api', API_URL);
+document.getElementById('apiUrlDisplay').textContent = API_URL;
+
+var TOKEN_KEY = 'cs_admin_token';
+var USER_KEY = 'cs_admin_user';
+
+/**
+ * Where to go after signing in.
+ *
+ * Only same-origin absolute paths are honoured. An attacker-supplied
+ * `?next=https://evil.example` would otherwise turn this form into an
+ * open redirect on a page people are trained to type passwords into.
+ */
+function safeNext() {
+  var next = params.get('next') || '';
+  if (!next || next.charAt(0) !== '/' || next.charAt(1) === '/') return '/admin/';
+  return next;
+}
+
+var errorBox = document.getElementById('loginError');
+var hintBox = document.getElementById('defaultHint');
+var form = document.getElementById('loginForm');
+var btn = document.getElementById('loginBtn');
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.classList.add('show');
+}
+function clearError() { errorBox.classList.remove('show'); }
+
+// ---------------------------------------------------------------------------
+//  Password reveal
+// ---------------------------------------------------------------------------
+document.getElementById('pwToggle').addEventListener('click', function () {
+  var input = document.getElementById('password');
+  var revealed = input.type === 'text';
+  input.type = revealed ? 'password' : 'text';
+  this.setAttribute('aria-label', T(revealed ? '显示密码' : '隐藏密码'));
+  input.focus();
+});
+
+// ---------------------------------------------------------------------------
+//  First-run hint
+// ---------------------------------------------------------------------------
+// Only shown while the seed password is genuinely unchanged — the backend tells
+// us. Hard-coding it would leave "admin / 123456" printed on the login page of
+// every deployed server forever.
+fetch(API_URL + '/api/auth/state')
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (s) {
+    if (!s) return;
+    if (s.auth_required === false) {
+      hintBox.textContent = T('当前已关闭登录鉴权（AUTH_ENABLED=false），可直接进入后台。');
+      hintBox.classList.add('show');
+      return;
+    }
+    if (s.default_password) {
+      hintBox.textContent = T('首次使用：默认账号 admin，默认密码 123456，登录后请立即修改。');
+      hintBox.classList.add('show');
+      document.getElementById('username').value = 'admin';
+      document.getElementById('password').focus();
+    }
+  })
+  .catch(function () { /* backend down — the login attempt will report it */ });
+
+// ---------------------------------------------------------------------------
+//  Submit
+// ---------------------------------------------------------------------------
+form.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  clearError();
+
+  var username = document.getElementById('username').value.trim();
+  var password = document.getElementById('password').value;
+  if (!username || !password) {
+    showError(T('请输入用户名和密码'));
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>' + T('登录中…');
+
+  try {
+    var r = await fetch(API_URL + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Needed for the HttpOnly cookie that gates /admin/index.html to be
+      // stored when the console is pointed at another origin.
+      credentials: 'include',
+      body: JSON.stringify({ username: username, password: password }),
+    });
+    var text = await r.text();
+    var data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+
+    if (!r.ok) {
+      var msg = (data && data.error && data.error.message) ||
+                (r.status === 401 ? T('用户名或密码错误') : ('HTTP ' + r.status));
+      throw new Error(msg);
+    }
+
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
+    // replace(), not assign(): Back must not return to the login form.
+    location.replace(safeNext());
+  } catch (err) {
+    showError(err.message === 'Failed to fetch'
+      ? T('无法连接后端，请确认服务已启动且 API 地址正确')
+      : err.message);
+    btn.disabled = false;
+    btn.textContent = T('登 录');
+    document.getElementById('password').select();
+  }
+});
+
+// Re-render the JS-built strings when the language changes.
+document.addEventListener('cs-lang-change', function () {
+  if (!btn.disabled) btn.textContent = T('登 录');
+});
+</script>
+</body>
+</html>

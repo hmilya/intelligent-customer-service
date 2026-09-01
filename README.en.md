@@ -8,7 +8,7 @@
 
 ![status](https://img.shields.io/badge/status-working-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-103%20backend%20%2B%2031%20widget%20%2B%2024%20admin-brightgreen)
+![tests](https://img.shields.io/badge/tests-174%20backend%20%2B%2032%20widget%20%2B%2071%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **Repositories**
@@ -23,6 +23,7 @@
 ## Contents
 
 - [Three steps to run](#three-steps-to-run)
+- [Login & account](#login--account)
 - [Screenshots](#screenshots)
 - [Features](#features)
 - [Admin console tour](#admin-console-tour)
@@ -85,6 +86,9 @@ You'll see:
 
 Open **http://localhost:8000/admin/**
 
+You land on the login page. Sign in with the default account **`admin` /
+`123456`** (see [Login & account](#login--account)), then:
+
 | Step | What to do |
 |---|---|
 | 1️⃣ | If a yellow banner appears at the top, click **"🚀 One-click init"** (creates tables, dirs, default config) |
@@ -108,6 +112,73 @@ python run.py --install          # auto-install missing deps
 
 Standard uvicorn works too: `uvicorn src.main:app --reload --port 8000`
 </details>
+
+---
+
+## Login & account
+
+The console sits behind a login. Any visit to `/admin/`, `/admin` or
+`/admin/index.html` without a valid session gets a **302** to
+`/admin/login.html?next=…`, so you land where you were headed once you sign in.
+
+| | |
+|---|---|
+| Login page | `/admin/login.html` |
+| Default account | `admin` / `123456` — seeded on first startup, and only while the admin user table (`cs_admin_user`) is empty |
+| Token lifetime | 7 days (`AUTH_TOKEN_TTL_HOURS=168`) |
+
+> **Change the default password before you expose anything**, and set
+> `APP_SECRET_KEY`. A banner stays in the console for as long as `123456` is
+> still in use.
+
+Two files stay reachable without a login by design: `/admin/login.html` (else
+the redirect loops) and `/admin/embed.html`, which is the iframe target of
+`/embed` and therefore has to load on third-party sites.
+
+### The Account page
+
+**👤 Account** sits in the left nav right after *Agent profile*. Two cards: your
+profile (username / display name / email) and a password change (current / new /
+confirm). The far right of the top bar holds a round avatar (the first letter of
+your display name); hovering or clicking it opens a menu with **Profile**,
+**Change password** and **Sign out** — the first two jump straight to the
+matching card on this page.
+
+- **One account by design** — no multi-user management, no roles.
+- Username **3–32 characters, no spaces**. Password **at least 6 characters**.
+- Changing the password **invalidates sessions on every other device
+  immediately** — tokens carry a fingerprint of the password hash. The device
+  that made the change is issued a fresh token and stays signed in.
+- **Renaming signs nobody out.** A token resolves the account by its numeric id,
+  not by username, so tokens minted before the rename keep working.
+  `PUT /api/auth/me` still hands back a new token, purely so the client isn't
+  left holding one with a stale username in it.
+
+### How the credential travels
+
+`Authorization: Bearer <token>` is the primary transport: the console can be
+pointed at another origin with `?api=`, and with `CORS_ORIGINS=*` a cookie can't
+be sent cross-origin at all. An HttpOnly cookie `cs_admin_token` is set as well,
+but only so the server can gate the `/admin/index.html` page load before any
+JavaScript runs. Tokens are signed with `APP_SECRET_KEY`, carry no server-side
+session, and embed a fingerprint of the password hash — which is exactly how a
+password change invalidates older tokens everywhere.
+
+### Which endpoints need a login
+
+| Access | Endpoints |
+|---|---|
+| **Admin token required** | `GET` `PUT` `/api/config` · `GET /api/config/providers` · all of `/api/documents/*` (list, parsers, upload, process, split-preview, `DELETE`) · all of `/api/models/*` (list, vector-db, available, test, test-embedding) · all of `/api/admin/*` (status, init, version) · `GET` `PUT` `/api/auth/me` · `PUT /api/auth/me/password` |
+| **Open, no login** | `GET /health` · `GET /api/config/public` · `GET /api/auth/state` · `POST /api/auth/login` · `POST /api/auth/logout` · all of `/api/sessions/*` · `POST /api/chat` · `POST /api/chat/stream` |
+
+The second group has to stay open: the embedded widget calls it from anonymous
+visitors' browsers, and so do the console's own *Chat preview* and *Embed guide*
+pages.
+
+That is why **`GET /api/config/public`** exists. It returns only `name`,
+`avatar`, `welcome_message`, `contact_phone` and `contact_email`, and the widget
+reads that now. Plain `GET /api/config` additionally carries API base URLs,
+model names and vector-DB coordinates — which is why it is behind a login.
 
 ---
 
@@ -162,13 +233,14 @@ Standard uvicorn works too: `uvicorn src.main:app --reload --port 8000`
 | **🪟 Embeddable widget** | Single-file JS, zero dependencies, no build step. Renders Markdown and makes links clickable |
 | **📲 Cross-platform** | Websites / WeChat mini-program `web-view` / Electron / Tauri / iOS / Android |
 | **⚙️ Browser-only config** | Models, vector store, RAG params, agent profile — all editable in the UI, effective immediately without a restart |
+| **🔐 Admin login** | The console and every config/document/model endpoint sit behind a login. Default `admin` / `123456`, 7-day tokens, single account, password change signs out other devices |
 | **🌐 Four languages, detected offline** | Simplified / Traditional Chinese, Japanese, English. **Region comes from the browser's time zone — no IP lookup, so it still works on an air-gapped intranet.** Switch by hand any time; the AI answers in whatever language is active |
 
 ---
 
 ## Admin console tour
 
-Eight menu items on the left of `/admin/`:
+Nine menu items on the left of `/admin/`:
 
 | Menu | Purpose |
 |---|---|
@@ -178,10 +250,11 @@ Eight menu items on the left of `/admin/`:
 | 🔍 **RAG settings** | **Answer-policy switch** + top-K/threshold + chunking, with **chunking preview** |
 | 📄 **Knowledge docs** | Drag-and-drop upload, **live ingestion progress**, resume on failure, delete |
 | 💬 **Agent profile** | Name, avatar, greeting, contacts (the widget reads these automatically) |
+| 👤 **Account** | Username / display name / email, and change your password — see [Login & account](#login--account) |
 | 🪟 **Chat preview** | The real widget in an iframe — test RAG answers here |
 | 🌐 **Embed guide** | Three embedding methods, copy-paste ready |
 
-Four persistent tools sit in the top-right corner:
+Five persistent tools sit in the top-right corner:
 
 | Tool | Behaviour |
 |---|---|
@@ -189,6 +262,7 @@ Four persistent tools sit in the top-right corner:
 | 🌐 **Language** | Switches the console between 简体中文 / 繁體中文 / 日本語 / English. Each option is labelled in its own script, so a visitor who can't read the current language can still find theirs |
 | ⬆︎ **Check for updates** | Compares the running version with the latest GitHub release; a red dot appears when one is available |
 | ☕ **Donate** | WeChat / Alipay / QQ QR codes |
+| 👤 **Signed-in account** | Round avatar at the far right; hover or click for Profile / Change password / Sign out |
 
 > **The update check needs a repo**: set `APP_GITHUB_REPO=owner/repo` in
 > `backend/.env`. Without it the button explains how to configure it rather
@@ -198,6 +272,38 @@ Four persistent tools sit in the top-right corner:
 > it shows the release notes and the update commands, and you decide when to
 > run them. Auto-`git pull` would overwrite uncommitted local changes and can
 > leave the service unable to start, so it isn't wired to a button.
+
+### Desktop layout and scrollbars
+
+At widths ≥ 721px the **sidebar and top bar stay put; only the content area
+scrolls**. `body` has page scrolling switched off, `.main` carries its own
+`overflow-y: auto`, and the top bar is pinned with `position: sticky`.
+
+The scrollbar is drawn by hand rather than left to the system:
+
+| Trait | How |
+|---|---|
+| Thin and rounded | A 4px pill squeezed out of a 10px gutter with `3px solid transparent` + `background-clip: content-box` — it looks thin but the hit area is still 10px |
+| Oval caps | `border-radius: 999px` |
+| Hidden at rest | `background-color: transparent` by default; fades in while scrolling (a script adds `.is-scrolling`) or while the pointer is over the content area, then fades out about a second after scrolling stops |
+| Dark sidebar | Uses translucent white instead — grey is invisible on the dark panel |
+
+Two traps worth recording, both hit during development:
+
+- **`scrollbar-width` silently kills `::-webkit-scrollbar`.** If either
+  `scrollbar-width` or `scrollbar-color` is set to anything other than `auto`,
+  Chrome ignores the `::-webkit-scrollbar` pseudo-elements *entirely* and falls
+  back to the native scrollbar (a zero-width overlay on macOS) — the pill never
+  renders. The two systems are mutually exclusive, so the standard properties
+  live inside `@supports not selector(::-webkit-scrollbar)`, which is true in
+  Chrome/Safari and false in Firefox — exactly the split needed.
+- **Sticky offsets constrain the margin box, not the border box.** The top bar
+  uses `margin-top: -32px` to bleed past `.main`'s padding; with `top: 0` the
+  border box lands at y=32, leaving a 32px unpainted strip that scrolled content
+  shows through. It needs `top: -32px`.
+
+Below 721px none of this applies: the sidebar becomes a drawer and the page
+scrolls normally.
 
 ---
 
@@ -240,7 +346,7 @@ intelligent-customer-service/
 │   ├── docker-compose.yml            MySQL + Redis + Qdrant + Milvus
 │   ├── src/
 │   │   ├── main.py                   FastAPI app factory
-│   │   ├── api/                      admin · chat · config · documents · models · sessions
+│   │   ├── api/                      admin · auth · chat · config · documents · models · sessions
 │   │   ├── services/                 document · rag · llm · embedding · session
 │   │   ├── adapters/                 base · openai · anthropic · factory
 │   │   ├── vector_store/             base · chroma · qdrant · milvus · factory
@@ -250,10 +356,11 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter (structure-aware) · sse · hash · obfuscation
-│   │   └── tests/                    103 tests
+│   │   └── tests/                    174 tests (71 of them auth)
 │   ├── scripts/
 │   │   ├── init_db.py                create tables (one-click init covers this)
 │   │   ├── check_env.py              dependency/config self-check
+│   │   ├── reset_admin_password.py   ← reset the admin password from the shell
 │   │   ├── ingest_docs.py            bulk import
 │   │   └── ingest_retry.py           ← auto-retry ingestion for large corpora
 │   └── samples/                      sample knowledge doc
@@ -262,15 +369,17 @@ intelligent-customer-service/
 │   │   └── locale.js                 ← offline region detection (time zone first, language second)
 │   ├── admin/
 │   │   ├── index.html                admin console
+│   │   ├── login.html                ← sign-in page (reachable without a login)
 │   │   ├── embed.html                standalone chat page (preview / iframe)
 │   │   ├── i18n.js                   ← catalogs for 4 languages (Simplified Chinese is the source, so it needs none)
 │   │   ├── i18n-check.mjs            ← catalog coverage check (fails on any missing translation)
 │   │   ├── mark-i18n.py              ← adds data-i18n markers to the HTML (re-runnable)
-│   │   └── selftest.mjs              ← language-switching self-test (24 assertions)
+│   │   ├── selftest.mjs              ← console self-test: language switching + account menu (34 assertions)
+│   │   └── login-selftest.mjs        ← sign-in page self-test (37 assertions)
 │   ├── assets/                       icons, donate QR codes, screenshots
 │   └── widget/
 │       ├── customer-service.js       embeddable widget (zero deps)
-│       ├── selftest.mjs              ← 31 assertions in a real DOM
+│       ├── selftest.mjs              ← 32 assertions in a real DOM
 │       └── demo/                     embedding demos
 └── docs/
     ├── API.md · DEPLOYMENT.md · EMBED_GUIDE.md
@@ -417,7 +526,8 @@ an answer". Other corpora may need this tuned.
     apiUrl: 'http://localhost:8000',
     accent: '#0a66c2',
     position: 'right',      // 'left' | 'right'
-    enableUpload: true,
+    // Off by default: the document endpoints require an admin login
+    enableUpload: false,
   });
 </script>
 ```
@@ -462,8 +572,8 @@ Remember to whitelist the domain in the mini-program console.
 | `accent` | `#0a66c2` | Theme colour |
 | `position` | `right` | Corner for the floating button |
 | `autoOpen` | `false` | Open on load |
-| `enableUpload` | `true` | Show the upload button |
-| `useServerConfig` | `true` | Pull agent profile from `/api/config` |
+| `enableUpload` | `false` | Show the upload button (see note below) |
+| `useServerConfig` | `true` | Pull agent profile from `/api/config/public` |
 | `sessionId` | `null` | Resume a previous session |
 | `lang` | `auto` | `auto` / `zh-CN` / `zh-TW` / `ja` / `en` — see [Languages](#languages-auto-detected-offline) |
 | `onReady` | `null` | Callback after init |
@@ -473,6 +583,11 @@ Remember to whitelist the domain in the mini-program console.
 CustomerService.open() / close() / toggle() / sendMessage(text) / destroy()
 CustomerService.setLang('ja') / getLang()
 ```
+
+> **`enableUpload` defaults to `false`** (it used to be `true`).
+> `/api/documents/upload` requires an admin token, so a visitor pressing the
+> button would only get a `401`. Turn it on only where the person using the
+> widget is signed in to the console.
 
 See [docs/EMBED_GUIDE.md](docs/EMBED_GUIDE.md) for Electron / Tauri / iOS /
 Android / CSP details.
@@ -519,10 +634,10 @@ To force a language: pass `lang: 'ja'` to the widget, add `?lang=ja` to `/embed`
 or the console, or send `{"lang":"ja"}` to the API.
 
 ```bash
-# All four checks must be green: 103 backend, 31 widget, 24 admin, plus catalog coverage
+# All checks must be green: 174 backend, 32 widget, 34 admin + 37 login, plus catalog coverage
 cd backend && .venv/bin/pytest src/tests -q
 cd frontend/widget && npm i && node selftest.mjs
-cd frontend/admin && node selftest.mjs && node i18n-check.mjs
+cd frontend/admin && node selftest.mjs && node login-selftest.mjs && node i18n-check.mjs
 ```
 
 Changed some Chinese text in the console? `node i18n-check.mjs` tells you which
@@ -543,7 +658,15 @@ Swagger: **http://localhost:8000/docs** · Details: [docs/API.md](docs/API.md)
 | `GET` | `/api/admin/status` | Install status (drives the setup banner) |
 | `POST` | `/api/admin/init` | One-click init (idempotent) |
 | `GET` | `/api/admin/version` | Update check against the latest GitHub release |
+| `GET` | `/api/auth/state` | Whether auth is required and whether the default password is still in use (public) — `{"auth_required": true, "default_password": true}` |
+| `POST` | `/api/auth/login` | `{username, password}` → `{access_token, token_type, expires_in, user}` |
+| `POST` | `/api/auth/logout` | Clears the cookie |
+| `GET` | `/api/auth/me` | Current account |
+| `PUT` | `/api/auth/me` | Update `username` / `display_name` / `email`; returns a fresh token |
+| `PUT` | `/api/auth/me/password` | `{old_password, new_password}`; returns a fresh token |
+| `GET` | `/api/auth/ping` | Cheap "is my token still valid" check |
 | `GET` `PUT` | `/api/config` | Read / update all config |
+| `GET` | `/api/config/public` | Agent profile only (`name`, `avatar`, `welcome_message`, `contact_phone`, `contact_email`) — what the widget reads |
 | `GET` | `/api/config/providers` | Vendor registry |
 | `POST` | `/api/documents/upload` | Upload a document (multipart) |
 | `POST` | `/api/documents/process` | Chunk + embed + index (resumable) |
@@ -562,12 +685,17 @@ Swagger: **http://localhost:8000/docs** · Details: [docs/API.md](docs/API.md)
 | `POST` | `/api/models/test-embedding` | Test embedding and detect dimension |
 | `GET` | `/api/models/vector-db` | Vector store list |
 
+> Most of these need an admin token — see
+> [Which endpoints need a login](#which-endpoints-need-a-login) for the exact
+> split.
+
 **Static pages** (served by the backend — no separate web server needed):
 
 | Path | What |
 |---|---|
 | `/` | Landing page with shortcuts |
-| `/admin/` | **Admin console** |
+| `/admin/` | **Admin console** (redirects to the login page without a session) |
+| `/admin/login.html` | Sign-in page |
 | `/embed` | Standalone chat page for iframes (query string preserved) |
 | `/widget/customer-service.js` | The widget |
 | `/widget/demo/` | Embedding demos |
@@ -601,9 +729,13 @@ normal use. This table is for deployment scripts and CI.
 | Group | Variable | Default |
 |---|---|---|
 | App | `APP_ENV` / `APP_DEBUG` / `APP_HOST` / `APP_PORT` | `development` / `true` / `0.0.0.0` / `8000` |
-| | `APP_SECRET_KEY` | `change-me-in-production` |
+| | `APP_SECRET_KEY` | `change-me-in-production` (**signs login tokens — change it**) |
 | | `UPLOAD_DIR` / `MAX_UPLOAD_MB` | `./uploads` / `20` |
 | | `APP_GITHUB_REPO` / `APP_VERSION` | empty / `0.1.0` (update check) |
+| Auth | `AUTH_ENABLED` | `true` (`false` disables every guard) |
+| | `AUTH_TOKEN_TTL_HOURS` | `168` (7 days) |
+| | `AUTH_COOKIE_NAME` | `cs_admin_token` |
+| | `AUTH_DEFAULT_USERNAME` / `AUTH_DEFAULT_PASSWORD` | `admin` / `123456` (seed account) |
 | Database | `DATABASE_URL` | `sqlite+aiosqlite:///./data/app.db` |
 | Redis | `REDIS_URL` / `REDIS_ENABLED` | empty / `false` |
 | Vector store | `VECTOR_DB_PROVIDER` | `chroma` (`chroma`\|`qdrant`\|`milvus`) |
@@ -622,6 +754,13 @@ normal use. This table is for deployment scripts and CI.
 | CORS | `CORS_ORIGINS` | `*` |
 
 </details>
+
+> ⚠️ **`APP_SECRET_KEY` now signs the login tokens** and **must be changed
+> before deployment** — the backend logs a warning at startup if it is still the
+> default outside development.
+>
+> `AUTH_ENABLED=false` switches off every guard: no login page, no token checks.
+> Only for a throwaway demo on a private network.
 
 > ⚠️ **`backend/data/app.db` holds the API keys you enter in the UI**
 > (base64-obfuscated, effectively plaintext). It's excluded by `.gitignore` —
@@ -644,6 +783,22 @@ python run.py --install
 ```
 
 PyCharm users: check the interpreter in your Run Configuration matches.
+</details>
+
+<details>
+<summary><b>I forgot the admin password</b></summary>
+
+Reset it from the shell, in the `backend/` directory:
+
+```bash
+cd backend
+python -m scripts.reset_admin_password
+```
+
+It prompts for the new password without echoing it. `--list` shows which
+accounts exist, and `--username X --password Y` is the non-interactive form.
+
+Resetting **signs out all devices**.
 </details>
 
 <details>
@@ -757,18 +912,21 @@ Python 3.14.5.
 ## Development
 
 ```bash
-# Backend: 103 tests
+# Backend: 174 tests (71 of them auth)
 cd backend
 python -m pytest src/tests/ -q
 
-# Widget self-test: 31 assertions — full SSE flow in a real DOM, plus region detection
+# Widget self-test: 32 assertions — full SSE flow in a real DOM, plus region detection
 cd frontend/widget
 npm install       # installs jsdom
 npm test
 
-# Admin console language switching: 24 assertions (borrows the jsdom the widget installed)
+# Admin console: 34 assertions — language switching + the top-right account menu (borrows the jsdom the widget installed)
 cd frontend/admin
 node selftest.mjs
+
+# Sign-in page: 37 assertions — login success/failure, open-redirect guard, ?api= retargeting
+node login-selftest.mjs
 
 # Catalog coverage: every Chinese string in the UI must have all three translations
 node i18n-check.mjs
@@ -776,6 +934,10 @@ node i18n-check.mjs
 # Environment self-check
 cd backend && python scripts/check_env.py
 ```
+
+> 173 of the 174 backend tests pass out of the box; the remaining failure
+> predates the login work and comes from the optional `chromadb` dependency not
+> being installed.
 
 > The widget self-test earns its place: `node -c` only checks syntax and can't
 > catch things like a template literal terminated early by an inner backtick,
@@ -789,6 +951,14 @@ cd backend && python scripts/check_env.py
 > switching language twice still switches back. `selftest.mjs` loads the real
 > `index.html` in jsdom and runs the real `apply()`; both classes of bug were
 > caught by it, not by the regex check.
+>
+> `login-selftest.mjs` had one obstacle worth recording: jsdom's
+> `location.replace` is a read-only own property, and a successful login is
+> exactly what calls it. The fix is to stop jsdom from running the page's
+> scripts, pull the inline script out, and eval it wrapped in a function whose
+> parameter is named `location` — the parameter shadows the global, so the
+> redirect target becomes an assertable value. That is how the open-redirect
+> guard (`?next=//evil.com` must land on `/admin/`) is tested.
 
 ---
 
@@ -799,9 +969,10 @@ firewall, backups, upgrades, troubleshooting). The essentials:
 
 ### Three things to know first
 
-1. **Only Nginx should face the internet.** The app binds `127.0.0.1:8000`; the
-   admin console has no login, so exposing it directly hands out your API key
-   configuration page.
+1. **Only Nginx should face the internet.** The app binds `127.0.0.1:8000`. The
+   console does have a login, but it ships with a **default password** and a
+   default `APP_SECRET_KEY` — change both before anyone can reach the box, or
+   you are handing out your API key configuration page.
 2. **SSE needs buffering off in Nginx** — otherwise answers appear all at once
    instead of streaming (the most common deployment mistake).
 3. **API keys live in `backend/data/app.db`** (base64-obfuscated, effectively
@@ -866,17 +1037,24 @@ server {
 
 ### Protect the admin console
 
-It has **no built-in login**. Pick one, most secure first:
+It has a **built-in login** (see [Login & account](#login--account)), so the
+first two jobs after deployment are: **change the default password** and **set
+`APP_SECRET_KEY`**.
+
+For anything sensitive, add a second layer *on top of* the login. Most secure
+first:
 
 | Approach | How |
 |---|---|
 | **SSH tunnel** (recommended) | Don't expose it; `ssh -L 8000:127.0.0.1:8000 user@server`, open `localhost:8000/admin/` |
 | **IP allowlist** | `allow your.ip; deny all;` on `/admin/` in Nginx |
-| **Basic auth** | `htpasswd` + `auth_basic`, and protect `/api/config` `/api/admin` too |
+| **Basic auth** | `htpasswd` + `auth_basic`, and cover `/api/config` `/api/admin` too |
 
 ### Security checklist
 
-- [ ] `APP_SECRET_KEY` replaced with a random value
+- [ ] **Default password `123456` changed** on the *Account* page
+- [ ] `APP_SECRET_KEY` replaced with a random value (it signs the login tokens)
+- [ ] `AUTH_ENABLED` left at `true`
 - [ ] `APP_ENV=production` and `APP_DEBUG=false` (debug leaks stack traces)
 - [ ] `CORS_ORIGINS` restricted to real domains, not `*`
 - [ ] Admin console access-controlled

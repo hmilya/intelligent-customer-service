@@ -33,6 +33,7 @@ EXPECTED_TABLES = {
     "cs_session",
     "cs_message",
     "cs_document",
+    "cs_admin_user",
 }
 
 
@@ -129,8 +130,24 @@ async def status() -> Dict[str, Any]:
             "llm_provider": settings.llm.provider,
             "llm_api_key_set": llm_key_set,
             "embedding_api_key_set": embedding_key_set,
+            # Drives the console's "you're still on admin/123456" reminder.
+            "default_password_in_use": (await _default_password_in_use()) if db_ready else False,
         },
     }
+
+
+async def _default_password_in_use() -> bool:
+    """True when the seed admin still has the factory password."""
+    if not get_settings().auth.enabled:
+        return False
+    try:
+        async with session_scope() as session:
+            from ..services.auth_service import is_default_password_in_use
+
+            return await is_default_password_in_use(session)
+    except Exception as e:
+        log.debug("default password check failed: %s", e)
+        return False
 
 
 async def _api_keys_set(settings) -> tuple[bool, bool]:
@@ -233,7 +250,7 @@ async def init_all() -> InitResult:
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    actions.append("创建数据库表 (cs_config / cs_session / cs_message / cs_document)")
+    actions.append("创建数据库表 (cs_config / cs_session / cs_message / cs_document / cs_admin_user)")
     details["tables_created"] = True
 
     # 2b) Add columns introduced after a table was first created.
@@ -244,7 +261,21 @@ async def init_all() -> InitResult:
         actions.append(f"补充新增字段：{'、'.join(added)}")
     details["columns_added"] = added
 
-    # 3) Seed default CSConfig if missing
+    # 3) Seed the admin login account if the user table is empty
+    async with session_scope() as session:
+        from ..services.auth_service import ensure_default_admin
+
+        seeded = await ensure_default_admin(session)
+    if seeded is not None:
+        actions.append(
+            f"创建管理员账号（{settings.auth.default_username} / "
+            f"{settings.auth.default_password}，请尽快修改密码）"
+        )
+    else:
+        actions.append("管理员账号已存在，跳过")
+    details["seeded_admin_user"] = seeded is not None
+
+    # 4) Seed default CSConfig if missing
     async with session_scope() as session:
         existing = (await session.execute(select(CSConfig).limit(1))).scalar_one_or_none()
         if existing is None:
