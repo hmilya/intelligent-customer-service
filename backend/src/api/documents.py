@@ -98,6 +98,30 @@ async def parsers() -> dict:
     return {"parsers": list_document_parsers()}
 
 
+# ----- Full-index rebuild (embedding model changed) --------------------
+@router.post("/reindex", summary="Rebuild the whole vector index with the current embedding model")
+async def start_reindex() -> dict:
+    """Start a background rebuild. Safe to call repeatedly: while a rebuild
+    is running the request is rejected with 409; a later call after a partial
+    failure resumes unfinished documents without dropping completed vectors.
+    """
+    from fastapi.responses import JSONResponse
+
+    from ..services.reindex_service import ReindexInProgress, start_reindex as _start
+
+    try:
+        return await _start(get_settings())
+    except ReindexInProgress as e:
+        return JSONResponse(status_code=409, content={"detail": str(e)})
+
+
+@router.get("/reindex/status", summary="Rebuild job status + model-signature mismatch")
+async def reindex_status() -> dict:
+    from ..services.reindex_service import status_payload
+
+    return await status_payload(get_settings())
+
+
 class SplitPreviewIn(BaseModel):
     text: Optional[str] = None
     document_id: Optional[str] = None

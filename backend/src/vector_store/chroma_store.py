@@ -109,6 +109,27 @@ class ChromaStore(BaseVectorStore):
             hits.append(VectorHit(chunk_id=cid, text=doc or "", score=score, metadata=meta or {}))
         return hits
 
+    async def reset(self) -> None:
+        """Drop the collection and recreate it empty.
+
+        Chroma infers the vector dimension from the first upsert, so the
+        recreated collection accepts the new embedding model's dimension
+        without it being passed anywhere.
+        """
+
+        def _do():
+            try:
+                self._client.delete_collection(name=self.collection_name)
+            except Exception as e:
+                raise VectorStoreError(f"failed to drop collection {self.collection_name}: {e}") from e
+            self._collection = self._client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
+
+        await _to_thread(_do)
+        log.warning("Chroma collection %s was reset (all vectors discarded)", self.collection_name)
+
     async def delete_document(self, document_id: str) -> int:
         def _do():
             existing = self._collection.get(where={"document_id": document_id})
@@ -124,6 +145,44 @@ class ChromaStore(BaseVectorStore):
             return self._collection.count()
 
         return int(await _to_thread(_do))
+
+    async def dimension(self) -> Optional[int]:
+        """Read the dimension Chroma locked the collection to.
+
+        Chroma stores this lazily on the first insert in its internal
+        ``collections`` sqlite table and never exposes it through the client
+        API — not even when the collection is empty, which is exactly the
+        confusing case (0 vectors but every new-dimension insert is rejected).
+        A separate short-lived read-only connection avoids interfering with
+        Chroma's own one; any failure (older schema, locked file) → None.
+        """
+        import sqlite3
+
+        def _do() -> Optional[int]:
+            db = self.persist_dir / "chroma.sqlite3"
+            if not db.exists():
+                return None
+            con = None
+            try:
+                con = sqlite3.connect(str(db), timeout=1.0)
+                row = con.execute(
+                    "SELECT dimension FROM collections WHERE name = ? LIMIT 1",
+                    (self.collection_name,),
+                ).fetchone()
+            except Exception as e:  # schema changed, db locked, ...
+                log.debug("could not read chroma collection dimension: %s", e)
+                return None
+            finally:
+                if con is not None:
+                    con.close()
+            if not row or not row[0]:
+                return None
+            try:
+                return int(row[0])
+            except (TypeError, ValueError):
+                return None
+
+        return await _to_thread(_do)
 
     async def aclose(self) -> None:
         # Chroma doesn't need an explicit close; we drop references.

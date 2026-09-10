@@ -74,6 +74,26 @@ async def load_embedding_config(settings: Optional[Settings] = None) -> Dict[str
 _WHERE_TO_FIX = "请在管理后台「模型配置 → 🧬 向量模型」中填写，填完点「🔌 测试并探测维度」验证。"
 
 
+def embedding_signature(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Identity of the embedding space a vector index was built with.
+
+    Stored on CSConfig as ``index_signature`` after a (re)build. A difference
+    between this and the currently configured model means the stored vectors
+    are incompatible — same-dim/different-model swaps are undetectable at
+    insert time but retrieval silently turns to noise, so the model name and
+    base URL matter, not just the dimension.
+
+    The API key is deliberately excluded: rotating a key keeps the same
+    embedding space and must not force a rebuild.
+    """
+    return {
+        "provider": str(cfg.get("provider") or "openai_compatible"),
+        "model": str(cfg.get("model") or ""),
+        "base_url": str(cfg.get("base_url") or "").rstrip("/"),
+        "dim": int(cfg.get("dim") or 0),
+    }
+
+
 def build_embedder_from(cfg: Dict[str, Any]) -> BaseEmbedder:
     provider = cfg.get("provider") or "openai_compatible"
     if provider != "openai_compatible":

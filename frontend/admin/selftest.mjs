@@ -403,6 +403,54 @@ if (mdA < 0 || mdB < mdA) {
 }
 const renderMarkdown = new Function(html.slice(mdA, mdB) + '\nreturn renderMarkdown;')();
 
+/* reindexNeeds 同理：决定「换模型后是否提示重建」的纯函数在内联脚本里，
+   整页脚本一跑就 fetch，所以用注释锚点切出这一段单独求值。函数体或规则
+   被改动而忘了同步自测时，下面的用例会直接红。 */
+const RN_START = '/* reindexNeeds-extract-start */';
+const RN_END = '/* reindexNeeds-extract-end */';
+const rnA = html.indexOf(RN_START), rnB = html.indexOf(RN_END);
+if (rnA < 0 || rnB < rnA) {
+  console.error('切不出 reindexNeeds —— index.html 里的锚点注释被改了？');
+  process.exit(1);
+}
+const reindexNeeds = new Function(
+  html.slice(rnA + RN_START.length, rnB) + ';return reindexNeeds;')();
+const SIG = { provider: 'p', model: 'm', base_url: 'https://e/v1', dim: 1024 };
+
+checks.push(
+  ['reindexNeeds：0 个已入库文档不需要重建（首次入库会补签名）', () => {
+    return reindexNeeds(SIG, null, 0) === false &&
+           reindexNeeds(SIG, { ...SIG, model: 'old' }, 0) === false;
+  }],
+  ['reindexNeeds：0 文档但集合锁在别的维度 → 必须重建', () => {
+    // 文档全删光 / 全部失败时，磁盘集合仍然锁维，这是必须报的情形。
+    return reindexNeeds(SIG, null, 0, 2048) === true &&
+           reindexNeeds({ ...SIG, dim: 1024 }, { ...SIG }, 0, 2048) === true;
+  }],
+  ['reindexNeeds：集合维度与当前一致时 0 文档不提示', () => {
+    return reindexNeeds(SIG, null, 0, 1024) === false &&
+           reindexNeeds(SIG, null, 0, null) === false;
+  }],
+  ['reindexNeeds：无签名的旧库 + 有已入库文档 → 建议重建', () => {
+    return reindexNeeds(SIG, null, 3) === true;
+  }],
+  ['reindexNeeds：签名一致 → 不重建', () => {
+    return reindexNeeds(SIG, { ...SIG }, 9) === false;
+  }],
+  ['reindexNeeds：model/base_url/dim/provider 任一变化 → 重建', () => {
+    return reindexNeeds(SIG, { ...SIG, model: 'm2' }, 1) === true &&
+           reindexNeeds(SIG, { ...SIG, base_url: 'https://other/v1' }, 1) === true &&
+           reindexNeeds(SIG, { ...SIG, dim: 2048 }, 1) === true &&
+           reindexNeeds(SIG, { ...SIG, provider: 'q' }, 1) === true;
+  }],
+  ['reindexNeeds：同维度不同模型也必须重建（向量空间不同）', () => {
+    return reindexNeeds({ ...SIG, dim: 1024 }, { ...SIG, model: 'other', dim: 1024 }, 2) === true;
+  }],
+  ['reindexNeeds：缺少当前签名时不谎报（宁可不提示也不误清空）', () => {
+    return reindexNeeds(null, SIG, 5) === false;
+  }],
+);
+
 const md = (name, src, fn) => checks.push(['md: ' + name, () => {
   const out = renderMarkdown(src);
   return fn(out) === true ? true : '得到 ' + JSON.stringify(out);

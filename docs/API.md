@@ -405,6 +405,54 @@ Response:
 
 At most 60 chunks are returned; `truncated` says whether more exist.
 
+### `POST /api/documents/reindex`
+
+Rebuild the whole vector index with the **current embedding config**. Use this
+after changing the embedding model: the collection is bound to the model that
+created it (dimension lock + embedding space), so old vectors must be dropped
+and every document re-embedded.
+
+The job runs in the background: probe the embedding endpoint → drop & recreate
+the collection at the probed dimension → reset all document rows → re-ingest
+each document with rate-limit backoff and resumable checkpoints. Returns
+`409 {"detail": "向量库重建任务已在运行中"}` while a job is already running.
+
+```bash
+curl -X POST http://localhost:8000/api/documents/reindex \
+  -H "Authorization: Bearer <token>"
+```
+
+### `GET /api/documents/reindex/status`
+
+Job state plus the model-signature mismatch that drives the console banner:
+
+```json
+{
+  "running": false,
+  "phase": "idle",
+  "repair_mode": false,
+  "docs_total": 40,
+  "docs_done": 12,
+  "current_file": "faq.md",
+  "failed": [],
+  "error": "",
+  "started_at": "",
+  "finished_at": "",
+  "docs_ready": 0,
+  "vector_count": 0,
+  "store_dimension": 2048,
+  "current_signature": {"provider": "openai_compatible", "model": "text-embedding-v3",
+                        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "dim": 1024},
+  "index_signature": null,
+  "needs_rebuild": true
+}
+```
+
+`phase` is one of `idle` / `preflight` / `reset` / `indexing` / `done` /
+`failed`. `needs_rebuild` is true when the live collection is locked to another
+dimension (even with zero documents) or documents carry a different model
+signature; it is forced false while a job is running.
+
 ---
 
 ## Chat — open

@@ -93,6 +93,7 @@
   .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
   .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
   .alert-info    { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+  .alert-warn    { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   table th, table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
   table th { background: #f9fafb; font-weight: 600; color: #374151; }
@@ -710,6 +711,10 @@
         <div class="alert alert-error" id="llmErr"></div>
       </div>
 
+      <!-- Embedding-model swap → vector-index rebuild banner. JS-rendered
+           (progress / confirm / result), so it deliberately has no data-i18n. -->
+      <div class="alert" id="reindexBanner"></div>
+
       <div class="card">
         <h3 data-i18n>🧬 向量模型（文档 Embedding）</h3>
         <p style="color:#6b7280;font-size:13px;margin-top:-8px;" data-i18n>
@@ -927,6 +932,8 @@
     <section class="page" id="page-documents">
       <h2 data-i18n>知识文档</h2>
       <p class="desc" data-i18n>上传 txt / docx / xlsx / pdf 文档，自动解析 → 切分 → 向量化 → 入库。</p>
+      <!-- Slim rebuild notice; the full banner lives on the model-config page. -->
+      <div class="alert" id="reindexDocsNotice"></div>
       <div class="card">
         <h3 data-i18n>上传新文档</h3>
         <div class="dropzone" id="dropzone">
@@ -1477,6 +1484,7 @@ function showPage(name) {
   if (name === 'dashboard') loadDashboard();
   if (name === 'chat') mountChat();
   if (name === 'account') loadAccount();
+  if (name === 'llm' || name === 'documents') refreshReindex().catch(() => {});
 }
 
 /**
@@ -1909,6 +1917,7 @@ $('btnSaveEmb').addEventListener('click', async () => {
     showAlert($('embOk'), T('✅ 向量模型已保存'));
     $('embApiKey').value = '';
     await loadConfig();
+    await refreshReindex().catch(() => {});
     await checkInit();
   } catch (e) {
     showAlert($('embErr'), T('❌ 保存失败：') + e.message, 'error');
@@ -1943,6 +1952,10 @@ $('btnTestEmb').addEventListener('click', async () => {
         showAlert($('embOk'), fmt(T('✅ {0} — 已自动把维度改为 {1}'), r.message, r.dim), 'success');
       }
       await loadConfig();
+      // Connection works AND the new config is saved: this is the one safe
+      // moment to offer the mandatory vector-index rebuild. Prompt (don't
+      // auto-start): re-embedding a big knowledge base costs quota.
+      await promptReindexConfirm().catch(() => {});
       await checkInit();
     } else {
       showAlert($('embErr'), '❌ ' + r.message, 'error');
@@ -1951,6 +1964,237 @@ $('btnTestEmb').addEventListener('click', async () => {
     showAlert($('embErr'), '❌ ' + e.message, 'error');
   }
 });
+
+/* ================= 向量库重建（Embedding 模型更换后） =================
+   向量集合与建库时的 embedding 模型终身绑定：维度不同，新向量写不进去；
+   维度相同但模型不同，向量空间不一致，检索会变成噪声。唯一正确的处理
+   是清空集合、对所有文档重新嵌入。模型连通测试成功后由用户确认一次，
+   后台执行（preflight → reset → 逐篇重嵌，带退避与断点续跑），
+   状态轮询 GET /api/documents/reindex/status。 */
+
+/* reindexNeeds-extract-start */
+function reindexNeeds(current, stored, readyCount, storeDim) {
+  // 必须与后端 reindex_service.needs_rebuild / signatures_equal 同义。
+  // 信号一（哪怕 0 个已入库文档）：现存集合被锁在别的维度 —— 这正是
+  // 「文档全删了却还是报 expecting dimension 2048 got 1024」的情形。
+  const curDim = +(current && current.dim) || 0;
+  const lockedDim = +storeDim || 0;
+  if (lockedDim && curDim && lockedDim !== curDim) return true;
+  // 信号二：有已入库文档但没有模型标记（旧版本库），或标记与当前模型不一致。
+  // 没有已入库文档且维度不冲突 → 暂无需重建（首次入库会补写签名）。
+  // api_key 故意不参与：轮换密钥不改变向量空间，不该逼用户重建整库。
+  if (!readyCount || readyCount <= 0) return false;
+  if (!stored) return true;
+  if (!current) return false;
+  return ['provider', 'model', 'base_url', 'dim'].some(
+    (k) => (stored[k] ?? '') !== (current[k] ?? ''));
+}
+/* reindexNeeds-extract-end */
+
+const REINDEX_POLL_MS = 3000;
+let reindexPollTimer = null;
+let reindexSeenRunning = false;        // this session watched a job → flash green when it finishes
+let reindexDismissedFinished = '';     // finished_at whose "done" banner the user dismissed
+
+function reindexPolling(on) {
+  if (on && !reindexPollTimer) {
+    reindexPollTimer = setInterval(() => {
+      // Same pause rule as the docs poller: no requests for a banner nobody sees.
+      const llm = document.getElementById('page-llm').classList.contains('active');
+      const docs = document.getElementById('page-documents').classList.contains('active');
+      if (llm || docs) refreshReindex().catch(() => {});
+    }, REINDEX_POLL_MS);
+  } else if (!on && reindexPollTimer) {
+    clearInterval(reindexPollTimer);
+    reindexPollTimer = null;
+  }
+}
+
+async function refreshReindex() {
+  const s = await API.request('/api/documents/reindex/status');
+  if (s.running) reindexSeenRunning = true;
+  renderReindex(s);
+  // While indexing, per-chunk progress lives in the documents table. Its own
+  // 3s poller starts from loadDocs when it sees processing rows; nudge once
+  // here for the case the job only reaches indexing after the page was opened.
+  if (s.running
+      && document.getElementById('page-documents').classList.contains('active')
+      && !docsPollTimer) {
+    loadDocs().catch(() => {});
+  }
+  reindexPolling(!!s.running);
+  return s;
+}
+
+function reindexPhaseLabel(phase) {
+  return ({
+    preflight: T('连通测试中…'),
+    reset: T('正在清空旧向量库…'),
+    indexing: T('正在逐篇重新入库…'),
+  })[phase] || T('准备中…');
+}
+
+async function startReindex() {
+  try {
+    await API.request('/api/documents/reindex', { method: 'POST', body: {} });
+  } catch (e) {
+    // 409 = a rebuild is already running (another tab, a double click). Attach
+    // to its progress rather than reporting an error.
+    if (!String(e.message).includes('409')) throw e;
+  }
+  reindexSeenRunning = true;
+  reindexDismissedFinished = '';
+  return refreshReindex();
+}
+
+/** Render the model-page banner. Text goes in through textContent — the
+ *  server-side failure strings are not trusted markup. */
+function renderReindex(s) {
+  const banner = $('reindexBanner');
+  const notice = $('reindexDocsNotice');
+  if (!banner || !notice) return;
+  const running = !!s.running;
+  const failed = (s.failed || []);
+  const needs = !running && reindexNeeds(
+    s.current_signature, s.index_signature, s.docs_ready, s.store_dimension);
+  const cur = s.current_signature || {};
+  const old = s.index_signature || null;
+
+  const paint = (el, kind, blocks, actions) => {
+    el.className = 'alert alert-' + kind + ' show';
+    el.innerHTML = '';
+    blocks.forEach((b, i) => {
+      // Object form only for bold — never read .bold off a string: the legacy
+      // String.prototype.bold method exists and would make every line bold.
+      const text = (typeof b === 'string') ? b : b.text;
+      const bold = (typeof b === 'object') && b.bold;
+      const div = document.createElement('div');
+      div.textContent = text;
+      if (bold) div.style.fontWeight = '700';
+      if (i > 0) div.style.marginTop = '6px';
+      el.appendChild(div);
+    });
+    if (actions && actions.length) {
+      const group = document.createElement('div');
+      group.className = 'btn-group';
+      actions.forEach((a) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-' + (a.kind || 'secondary');
+        btn.textContent = a.label;
+        btn.addEventListener('click', a.onClick);
+        group.appendChild(btn);
+      });
+      el.appendChild(group);
+    }
+  };
+  const hide = (el) => { el.className = 'alert'; el.innerHTML = ''; };
+  const jumpToLlm = () => showPage('llm');
+
+  // ---- model-config page: the full banner ----
+  if (running) {
+    const progress = fmt(T('文档 {0}/{1}'), s.docs_done, s.docs_total)
+      + (s.current_file ? ' · ' + fmt(T('当前：{0}'), s.current_file) : '')
+      + (s.repair_mode ? ' · ' + T('断点续跑中') : '');
+    paint(banner, 'info', [
+      { text: T('♻️ 正在重建向量库') + '：' + reindexPhaseLabel(s.phase), bold: true },
+      progress,
+    ]);
+  } else if (s.phase === 'failed' && failed.length && !needs) {
+    // Persists server-side until a retry succeeds — the list names exactly
+    // which documents still need attention. When the model changed again the
+    // amber "rebuild" CTA below takes precedence over the stale failure.
+    const blocks = [
+      { text: fmt(T('❌ 向量库重建未完全完成：{0}'), s.error || ''), bold: true },
+      ...failed.slice(0, 5).map((f) => `${f.filename}：${f.error}`),
+    ];
+    paint(banner, 'error', blocks, [
+      { label: T('重试'), onClick: () => startReindex().catch((e) =>
+        showAlert($('embErr'), fmt(T('❌ 启动重建失败：{0}'), e.message), 'error')) },
+    ]);
+  } else if (s.phase === 'done' && reindexSeenRunning
+             && s.finished_at !== reindexDismissedFinished) {
+    paint(banner, 'success', [
+      fmt(T('✅ 向量库已按当前模型重建完成（{0} 个文档）'), s.docs_total),
+    ], [
+      { label: T('知道了'), onClick: () => {
+        reindexDismissedFinished = s.finished_at;
+        reindexSeenRunning = false;
+        renderReindex(s);
+      } },
+    ]);
+  } else if (needs) {
+    const lockedDim = +s.store_dimension || 0;
+    const mismatch = old
+      ? fmt(T('当前向量库由模型 {0}（{1} 维）构建，与当前模型 {2}（{3} 维）不兼容。继续上传会报维度错误；即使维度相同，不同模型的向量空间不同，检索结果也会失准。'),
+            old.model, old.dim, cur.model, cur.dim)
+      : (lockedDim && cur.dim && lockedDim !== +cur.dim
+        ? fmt(T('当前向量库没有模型标记，但集合已被旧模型锁定为 {0} 维，而当前模型 {1} 输出 {2} 维：现在上传任何文档都会报维度错误，必须重建。'),
+              lockedDim, cur.model, cur.dim)
+        : fmt(T('当前向量库没有模型标记（由旧版本创建），无法确认与当前模型 {0}（{1} 维）兼容，建议重建。'),
+              cur.model, cur.dim));
+    paint(banner, 'warn', [
+      { text: T('♻️ 向量模型已更换，需要重建向量库'), bold: true },
+      mismatch,
+      fmt(T('重建会清空全部向量，并对 {0} 个文档重新嵌入，会消耗一定 API 配额；任务在后台运行，可随时离开本页。'), s.docs_total),
+    ], [
+      { label: T('♻️ 立即重建向量库'), kind: 'primary', onClick: promptReindexConfirm },
+    ]);
+  } else {
+    hide(banner);
+  }
+
+  // ---- documents page: one slim line ----
+  if (running) {
+    paint(notice, 'info', [
+      fmt(T('♻️ 向量库重建中：文档 {0}/{1}，当前 {2}（每篇的分片进度见文档列表）'),
+          s.docs_done, s.docs_total, s.current_file || T('准备中…')),
+    ]);
+  } else if (s.phase === 'failed' && failed.length && !needs) {
+    paint(notice, 'error', [T('❌ 向量库重建未完成，部分文档未重新入库，请前往「模型配置」页查看原因并重试。')], [
+      { label: T('去处理'), onClick: jumpToLlm },
+    ]);
+  } else if (needs) {
+    paint(notice, 'warn', [T('⚠️ 向量模型与向量库不兼容，请前往「模型配置」页重建向量库，否则新文档可能入库失败、检索失准。')], [
+      { label: T('去重建'), onClick: jumpToLlm },
+    ]);
+  } else {
+    hide(notice);
+  }
+}
+
+/** Confirm dialog shown after a successful embedding connection test. */
+async function promptReindexConfirm() {
+  let s;
+  try {
+    s = await API.request('/api/documents/reindex/status');
+  } catch (_) { return; }
+  if (s.running) {
+    reindexSeenRunning = true;
+    renderReindex(s);
+    reindexPolling(true);
+    return;
+  }
+  if (!reindexNeeds(s.current_signature, s.index_signature, s.docs_ready, s.store_dimension)) {
+    renderReindex(s);
+    return;
+  }
+  const cur = s.current_signature || {};
+  const old = s.index_signature;
+  // No signature yet, but the live collection knows the old dimension.
+  const oldDim = old ? old.dim : (+s.store_dimension || '?');
+  const msg = fmt(
+    T('检测到 Embedding 模型已更换。\n\n重建将：\n• 清空向量库中的全部向量\n• 对 {0} 个文档重新解析并嵌入（会消耗 API 配额）\n• 在后台运行，可在本页或「知识文档」页查看进度\n\n旧模型：{1}（{2} 维） → 新模型：{3}（{4} 维）\n\n现在开始重建吗？'),
+    s.docs_total,
+    old ? old.model : T('未知旧模型'),
+    oldDim,
+    cur.model, cur.dim);
+  if (!window.confirm(msg)) { renderReindex(s); return; }
+  try {
+    await startReindex();
+  } catch (e) {
+    showAlert($('embErr'), fmt(T('❌ 启动重建失败：{0}'), e.message), 'error');
+  }
+}
 
 $('btnSaveVec').addEventListener('click', async () => {
   try {
@@ -2813,6 +3057,8 @@ $('btnCheckUpdate').addEventListener('click', () => checkUpdate());
   try { await loadProviders(); } catch (e) { console.warn('providers load failed', e); }
   try { await loadConfig(); } catch (e) { console.warn('config load failed', e); }
   try { await loadDocs(); } catch (e) { console.warn('docs load failed', e); }
+  // Starts the rebuild progress poller if a job happens to already be running.
+  try { await refreshReindex(); } catch (e) { console.warn('reindex status failed', e); }
   // Populate the model dropdown for whatever vendor is currently saved.
   refreshModelList({ auto: true }).catch(() => {});
   // Silent update check: sets the GitHub link and shows a red dot when a newer

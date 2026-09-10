@@ -8,7 +8,7 @@
 
 ![status](https://img.shields.io/badge/status-working-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-174%20backend%20%2B%2032%20widget%20%2B%2071%20admin-brightgreen)
+![tests](https://img.shields.io/badge/tests-188%20backend%20%2B%2032%20widget%20%2B%2095%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **Repositories**
@@ -31,6 +31,7 @@
 - [Project layout](#project-layout)
 - [Supported model vendors](#supported-model-vendors)
 - [Vector databases](#vector-databases)
+- [Changed the embedding model? Rebuild the index in one click](#changed-the-embedding-model-rebuild-the-index-in-one-click)
 - [Structure-aware chunking](#structure-aware-chunking)
 - [Answer policy: strict RAG or model knowledge](#answer-policy-strict-rag-or-model-knowledge)
 - [Embedding into your site](#embedding-into-your-site)
@@ -168,7 +169,7 @@ password change invalidates older tokens everywhere.
 
 | Access | Endpoints |
 |---|---|
-| **Admin token required** | `GET` `PUT` `/api/config` · `GET /api/config/providers` · all of `/api/documents/*` (list, parsers, upload, process, split-preview, `DELETE`) · all of `/api/models/*` (list, vector-db, available, test, test-embedding) · all of `/api/admin/*` (status, init, version) · `GET` `PUT` `/api/auth/me` · `PUT /api/auth/me/password` |
+| **Admin token required** | `GET` `PUT` `/api/config` · `GET /api/config/providers` · all of `/api/documents/*` (list, parsers, upload, process, split-preview, reindex, `DELETE`) · all of `/api/models/*` (list, vector-db, available, test, test-embedding) · all of `/api/admin/*` (status, init, version) · `GET` `PUT` `/api/auth/me` · `PUT /api/auth/me/password` |
 | **Open, no login** | `GET /health` · `GET /api/config/public` · `GET /api/auth/state` · `POST /api/auth/login` · `POST /api/auth/logout` · all of `/api/sessions/*` · `POST /api/chat` · `POST /api/chat/stream` |
 
 The second group has to stay open: the embedded widget calls it from anonymous
@@ -246,6 +247,7 @@ model names and vector-DB coordinates — which is why it is behind a login.
 | **🤖 Multi-model** | 15 vendor presets: DeepSeek, Qwen/Bailian, Volcengine ARK (subscription and metered kept separate), Zhipu, Kimi, Qianfan, OpenAI, Claude, Gemini, Ollama, Shengsuanyun, Youyunjisuan, plus 2 custom slots |
 | **🔁 Dual protocol** | OpenAI `/chat/completions` and Anthropic `/messages`; switching protocol updates the base URL |
 | **🗂 Three vector stores** | **Chroma** (default, local files) / **Qdrant** / **Milvus** (incl. zero-install Lite) |
+| **♻️ One-click rebuild after a model swap** | Confirm once after changing the embedding model and the old collection is dropped and everything re-embedded in the background: visible progress, automatic rate-limit backoff, resumable checkpoints. Detects a stale dimension lock even on an empty collection (warns with 0 documents) |
 | **🎯 Answer policy** | Strict RAG by default (refuse anything outside your docs); optional switch to let the model answer from its own knowledge |
 | **⚡ Streaming** | SSE token streaming, with automatic 429 retry so a rate limit doesn't kill the reply |
 | **🪟 Embeddable widget** | Single-file JS, zero dependencies, no build step. Renders Markdown and makes links clickable |
@@ -263,7 +265,7 @@ Nine menu items on the left of `/admin/`:
 | Menu | Purpose |
 |---|---|
 | 📊 **Overview** | System status, current model, vector store, document count |
-| 🤖 **Model config** | Chat model (vendor/protocol/key/model/temperature) + embedding model, with connection test and **automatic dimension detection** |
+| 🤖 **Model config** | Chat model (vendor/protocol/key/model/temperature) + embedding model, with connection test, **automatic dimension detection**, and **one-click vector-index rebuild** after a model swap |
 | 🧠 **Vector store** | Switch between Chroma / Qdrant / Milvus |
 | 🔍 **RAG settings** | **Answer-policy switch** + top-K/threshold + chunking, with **chunking preview** |
 | 📄 **Knowledge docs** | Drag-and-drop upload, **live ingestion progress**, resume on failure, delete |
@@ -374,7 +376,7 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter (structure-aware) · sse · hash · obfuscation
-│   │   └── tests/                    174 tests (71 of them auth)
+│   │   └── tests/                    188 tests (73 auth, 10 rebuild state machine)
 │   ├── scripts/
 │   │   ├── init_db.py                create tables (one-click init covers this)
 │   │   ├── check_env.py              dependency/config self-check
@@ -392,7 +394,7 @@ intelligent-customer-service/
 │   │   ├── i18n.js                   ← catalogs for 4 languages (Simplified Chinese is the source, so it needs none)
 │   │   ├── i18n-check.mjs            ← catalog coverage check (fails on any missing translation)
 │   │   ├── mark-i18n.py              ← adds data-i18n markers to the HTML (re-runnable)
-│   │   ├── selftest.mjs              ← console self-test: language switching + account menu (34 assertions)
+│   │   ├── selftest.mjs              ← console self-test: language switching + account menu + rebuild logic (58 assertions)
 │   │   └── login-selftest.mjs        ← sign-in page self-test (37 assertions)
 │   ├── assets/                       icons, donate QR codes, screenshots
 │   └── widget/
@@ -453,12 +455,40 @@ underlying model it routes to is chosen in the ARK console.
 
 Switch under **Vector store**. After switching you must **restart the backend
 and re-ingest your documents** — vector data doesn't migrate between stores.
+(Merely changing the *embedding model* needs no manual folder deletion — use
+the one-click rebuild described in the next section.)
 
 | Store | Notes | Extra service? |
 |---|---|---|
 | **Chroma** (default) | Local files under `./data/chroma_db` | ❌ works out of the box |
 | **Qdrant** | Rust, production-grade | ✅ `docker compose up -d qdrant` |
 | **Milvus** | Enterprise-grade. A `.db` path uses **Milvus Lite** (zero install); `http://host:19530` connects to a server; Zilliz Cloud also works | Depends on mode |
+
+---
+
+## Changed the embedding model? Rebuild the index in one click
+
+A vector collection is permanently bound to **the embedding model that created it**. After a model swap the old vectors are unusable:
+
+- **Different dimensions** (e.g. a 2048-d multimodal model → a 1024-d `text-embedding`): new vectors are rejected outright with `Collection expecting embedding with dimension of 2048, got 1024`. **Deleting every document doesn't help** — even an empty collection keeps its dimension lock;
+- **Same dimension, different model**: no error, but the two embedding spaces are incompatible and retrieval silently turns into noise.
+
+The only correct response is to **drop the collection and re-embed every document**. That's a single guided action in the UI:
+
+1. On the **Model config** page, update the embedding model and click **🔌 Test & detect dimension** (saving first also works)
+2. If the test succeeds and an incompatibility is found, a confirmation dialog appears: old → new model, both dimensions, number of affected documents, and the warning that API quota will be consumed. Nothing starts until you confirm
+3. The job runs in the background; a banner on the Model config page and a slim notice on the Knowledge docs page show progress (`documents i/N · current file`, polled every 3 s and paused when the page isn't visible). Per-chunk progress stays in the documents table's own poller
+
+Pipeline: **probe embedding** (bad key/endpoint fails before any data is touched) → **drop & recreate the collection** at the probed dimension → reset every document row → re-parse/chunk/embed each document.
+
+| Design point | Behaviour |
+|---|---|
+| **Confirm, never fully automatic** | People click "test connection" just to try a model; full automation could burn quota re-embedding a 9 000-chunk knowledge base before the user has decided |
+| **Automatic rate-limit backoff** | 429 / rate limit / timeout wait and retry (from 60 s, up to 4×). Deterministic failures (corrupt file, bad key) fail fast and list the offending filenames |
+| **Resumable checkpoints** | Embedding runs in batches of 50 chunks. After an interruption or restart, "Retry" only processes unfinished documents/chunks — completed work is never re-embedded or re-billed |
+| **Model signature** | The config records the build-time `{provider, model, base_url, dim}`. **Rotating the API key alone never triggers a rebuild**; with no documents and no dimension conflict nothing nags you |
+| **Empty-collection lock detection** | The stored collection's locked dimension is read directly, so the confusing case — "all documents failed/were deleted, the collection is empty, yet inserts still fail with a dimension error" — is flagged as soon as you open the page |
+| **Endpoints** | `POST /api/documents/reindex` (409 while a job is running), `GET /api/documents/reindex/status`. Both require an admin login |
 
 ---
 
@@ -652,7 +682,7 @@ To force a language: pass `lang: 'ja'` to the widget, add `?lang=ja` to `/embed`
 or the console, or send `{"lang":"ja"}` to the API.
 
 ```bash
-# All checks must be green: 174 backend, 32 widget, 34 admin + 37 login, plus catalog coverage
+# All checks must be green: 188 backend, 32 widget, 58 admin + 37 login, plus catalog coverage
 cd backend && .venv/bin/pytest src/tests -q
 cd frontend/widget && npm i && node selftest.mjs
 cd frontend/admin && node selftest.mjs && node login-selftest.mjs && node i18n-check.mjs
@@ -692,6 +722,8 @@ Swagger: **http://localhost:8000/docs** · Details: [docs/API.md](docs/API.md)
 | `GET` | `/api/documents/list` | Documents with ingestion progress |
 | `DELETE` | `/api/documents/{id}` | Delete a document and its vectors |
 | `GET` | `/api/documents/parsers` | Supported file types |
+| `POST` | `/api/documents/reindex` | One-click index rebuild after an embedding-model swap (background job; 409 while running) |
+| `GET` | `/api/documents/reindex/status` | Rebuild progress + model-signature/dimension-lock mismatch |
 | `POST` | `/api/chat` | One-shot answer (JSON) |
 | `POST` | `/api/chat/stream` | **Streaming answer (SSE)** |
 | `GET` `POST` | `/api/sessions` | List / create sessions |
@@ -856,18 +888,39 @@ nohup python scripts/ingest_retry.py > ingest.log 2>&1 &
 ```
 
 For much faster ingestion, switch to an embedding service with a looser quota.
-Note that changing the model changes the dimension, so you must update the
-vector store dimension and **re-ingest everything**.
+Note that changing the model changes the dimension, so the index must be
+**rebuilt and every document re-ingested** — on the Model config page click
+**🔌 Test & detect dimension** and confirm the proposed one-click rebuild; no
+manual folder deletion required.
+</details>
+
+<details>
+<summary><b>Ingestion fails with <code>Collection expecting embedding with dimension of 2048, got 1024</code></b></summary>
+
+You changed the embedding model but the existing collection is still locked to
+the old model's dimension. Deleting documents or restarting the server doesn't
+clear the lock (even an empty collection keeps it) — the collection itself
+must be recreated.
+
+Open the Model config page: the banner spells out the locked dimension and the
+current model's dimension. Click **♻️ Rebuild vector index now** and confirm;
+the backend drops and recreates the collection, then re-embeds every document
+in the background. See
+[Changed the embedding model? Rebuild the index in one click](#changed-the-embedding-model-rebuild-the-index-in-one-click).
 </details>
 
 <details>
 <summary><b>Retrieval broke after changing vector store / embedding model</b></summary>
 
 The vector dimension must match the model's output, and **changing the model
-requires re-ingesting** (old vectors have a different dimension).
+requires rebuilding the index and re-ingesting everything** — even with
+matching dimensions, two different models live in incompatible vector spaces,
+so retrieval would silently turn into noise.
 
-Use **🔌 Test & detect dimension** — the UI reads the real dimension and syncs
-it to the vector store config.
+Use **🔌 Test & detect dimension** — the UI reads the real dimension, syncs it
+to the vector store config, and (after a confirmation) kicks off a one-click
+rebuild. Watch for the amber banner at the top of the Model config page if the
+dialog didn't appear.
 </details>
 
 <details>
@@ -930,7 +983,7 @@ Python 3.14.5.
 ## Development
 
 ```bash
-# Backend: 174 tests (71 of them auth)
+# Backend: 188 tests (73 of them auth, 10 cover the rebuild state machine)
 cd backend
 python -m pytest src/tests/ -q
 
@@ -939,7 +992,7 @@ cd frontend/widget
 npm install       # installs jsdom
 npm test
 
-# Admin console: 34 assertions — language switching + the top-right account menu (borrows the jsdom the widget installed)
+# Admin console: 58 assertions — language switching + the top-right account menu + the rebuild decision function (borrows the jsdom the widget installed)
 cd frontend/admin
 node selftest.mjs
 
@@ -953,7 +1006,7 @@ node i18n-check.mjs
 cd backend && python scripts/check_env.py
 ```
 
-> 173 of the 174 backend tests pass out of the box; the remaining failure
+> 187 of the 188 backend tests pass out of the box; the remaining failure
 > predates the login work and comes from the optional `chromadb` dependency not
 > being installed.
 

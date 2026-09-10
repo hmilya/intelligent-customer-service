@@ -56,8 +56,27 @@ class BaseVectorStore(ABC):
         """Delete all chunks belonging to a document. Returns count removed."""
 
     @abstractmethod
+    async def reset(self) -> None:
+        """Drop and recreate the collection, discarding every stored vector.
+
+        Needed when the embedding model changes: the collection's vector space
+        (and, for most backends, its dimension) is fixed at creation time, so
+        vectors produced by a different model cannot coexist with the old ones.
+        """
+
+    @abstractmethod
     async def count(self) -> int:
         """Total number of chunks indexed."""
+
+    async def dimension(self) -> Optional[int]:
+        """Vector dimension the *existing* collection is locked to, if known.
+
+        A collection stays dimension-locked even when it holds zero vectors,
+        so ``count()`` cannot answer "will a 1024-d insert succeed?". Backends
+        that cannot tell return ``None`` (no signal, never an error): this is
+        best-effort diagnostics for the rebuild banner, not a hard contract.
+        """
+        return None
 
     @abstractmethod
     async def aclose(self) -> None:

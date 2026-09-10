@@ -293,6 +293,8 @@ ROUTE_CLASSIFICATION = {
     ("POST", "/api/documents/upload"): "protected",
     ("POST", "/api/documents/process"): "protected",
     ("POST", "/api/documents/split-preview"): "protected",
+    ("POST", "/api/documents/reindex"): "protected",
+    ("GET", "/api/documents/reindex/status"): "protected",
     ("DELETE", "/api/documents/{document_id}"): "protected",
     ("GET", "/api/models"): "protected",
     ("GET", "/api/models/vector-db"): "protected",

@@ -75,6 +75,10 @@ class CSConfigIn(BaseModel):
     vector_db: VectorDBConfigIn = Field(default_factory=VectorDBConfigIn)
     rag: RAGConfigIn = Field(default_factory=RAGConfigIn)
     active_provider_code: Optional[str] = None
+    # Identity (provider/model/base_url/dim) of the embedding model that built
+    # the current vector index. Written only by the reindex pipeline; the UI
+    # reads it to warn when the configured model no longer matches the index.
+    index_signature: Optional[Dict[str, Any]] = None
 
 
 MASK_PREFIX = "****"

@@ -11,26 +11,34 @@ from .milvus_store import MilvusStore
 from .qdrant_store import QdrantStore
 
 
-def build_vector_store(settings: Optional[Settings] = None) -> BaseVectorStore:
+def build_vector_store(
+    settings: Optional[Settings] = None,
+    *,
+    embedding_dimension_override: Optional[int] = None,
+) -> BaseVectorStore:
     settings = settings or get_settings()
     v = settings.vector_db
+    # Used by the reindex pipeline to recreate the collection at the newly
+    # probed dimension before the .env/UI value has caught up. Chroma ignores
+    # this (its dimension is inferred from the first inserted vector).
+    dim = int(embedding_dimension_override) if embedding_dimension_override else v.embedding_dim
     if v.provider == "chroma":
         return ChromaStore(
             persist_dir=v.chroma_persist_dir,
             collection=v.collection,
-            embedding_dim=v.embedding_dim,
+            embedding_dim=dim,
         )
     if v.provider == "qdrant":
         return QdrantStore(
             host=v.host,
             port=v.port,
             collection=v.collection,
-            embedding_dim=v.embedding_dim,
+            embedding_dim=dim,
         )
     if v.provider == "milvus":
         return MilvusStore(
             collection=v.collection,
-            embedding_dim=v.embedding_dim,
+            embedding_dim=dim,
             uri=v.milvus_uri,
             host=v.host,
             port=v.milvus_port,

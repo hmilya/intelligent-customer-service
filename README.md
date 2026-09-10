@@ -7,7 +7,7 @@
 
 ![status](https://img.shields.io/badge/status-可用-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-174%20backend%20%2B%2032%20widget%20%2B%2071%20admin-brightgreen)
+![tests](https://img.shields.io/badge/tests-188%20backend%20%2B%2032%20widget%20%2B%2095%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **仓库地址**
@@ -30,6 +30,7 @@
 - [目录结构](#目录结构)
 - [支持的模型厂商](#支持的模型厂商)
 - [向量数据库](#向量数据库)
+- [换了 Embedding 模型？一键重建向量库](#换了-embedding-模型一键重建向量库)
 - [智能分词（结构感知切分）](#智能分词结构感知切分)
 - [回答策略：严格 RAG 还是允许自主回答](#回答策略严格-rag-还是允许自主回答)
 - [嵌入到你的网站](#嵌入到你的网站)
@@ -153,7 +154,7 @@ python run.py --install          # 缺依赖时自动安装
 |---|---|
 | `GET` `PUT` `/api/config` | 完整配置读写 |
 | `GET` `/api/config/providers` | 厂商注册表 |
-| `/api/documents/*` | list · parsers · upload · process · split-preview · DELETE |
+| `/api/documents/*` | list · parsers · upload · process · split-preview · reindex · DELETE |
 | `/api/models/*` | list · vector-db · available · test · test-embedding |
 | `/api/admin/*` | status · init · version |
 | `GET` `PUT` `/api/auth/me`、`PUT` `/api/auth/me/password` | 当前账号读写 |
@@ -250,6 +251,7 @@ python run.py --install          # 缺依赖时自动安装
 | **🤖 多模型** | 15 项厂商配置：DeepSeek、千问/百炼、火山方舟（包月/按量分开）、智谱、Kimi、千帆、OpenAI、Claude、Gemini、Ollama、胜算云、优云智算、2 个自定义 |
 | **🔁 双协议** | OpenAI `/chat/completions` 与 Anthropic `/messages` 可切换；切协议自动更新 Base URL |
 | **🗂 三种向量库** | **Chroma**（默认，本地文件）/ **Qdrant** / **Milvus**（含 Lite 零安装） |
+| **♻️ 换模型一键重建** | 换 Embedding 模型后确认一次即清空旧集合、全量重新嵌入：后台执行、进度可见、限流自动退避、断点续跑；能探测空集合残留的维度锁（0 文档也提示） |
 | **🎯 回答策略可选** | 默认严格 RAG（资料外一律拒答）；可开关允许 AI 自主回答 |
 | **⚡ 流式输出** | SSE 实时 token；429 自动重试不中断 |
 | **🪟 可嵌入组件** | 单文件 JS（零依赖、免构建），内置 Markdown 渲染 + 链接可点击 |
@@ -267,7 +269,7 @@ python run.py --install          # 缺依赖时自动安装
 | 菜单 | 作用 |
 |---|---|
 | 📊 **概览** | 系统状态、当前模型、向量库、文档数 |
-| 🤖 **模型配置** | 对话模型（厂商/协议/Key/模型/温度）+ 向量模型；带连接测试与**维度自动探测** |
+| 🤖 **模型配置** | 对话模型（厂商/协议/Key/模型/温度）+ 向量模型；带连接测试、**维度自动探测**与**换模型一键重建向量库** |
 | 🧠 **向量库** | Chroma / Qdrant / Milvus 切换及各自参数 |
 | 🔍 **RAG 设置** | **回答策略开关** + Top-K/阈值 + 切分策略；带**切分预览** |
 | 📄 **知识文档** | 拖拽上传、**实时入库进度**、失败可续传、删除 |
@@ -371,7 +373,7 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter（结构感知）· sse · hash · obfuscation
-│   │   └── tests/                    174 个测试（含 71 项登录鉴权）
+│   │   └── tests/                    188 个测试（含 73 项登录鉴权、10 项重建状态机）
 │   ├── scripts/
 │   │   ├── init_db.py                建表（一键初始化已覆盖，一般不用手跑）
 │   │   ├── check_env.py              依赖/配置自检
@@ -389,7 +391,7 @@ intelligent-customer-service/
 │   │   ├── i18n.js                   ← 四语言词条（简中为源语言，无需词条）
 │   │   ├── i18n-check.mjs            ← 词条覆盖检查（缺翻译即失败）
 │   │   ├── mark-i18n.py              ← 给 HTML 打 data-i18n 标记（可重跑）
-│   │   ├── selftest.mjs              ← 后台自检：语言切换 + 账号菜单（34 项断言）
+│   │   ├── selftest.mjs              ← 后台自检：语言切换 + 账号菜单 + 重建判定（58 项断言）
 │   │   └── login-selftest.mjs        ← 登录页自检（37 项断言）
 │   └── widget/
 │       ├── customer-service.js       嵌入组件（零依赖）
@@ -442,13 +444,39 @@ ARK 有两个**计费不同**的产品，务必选对：
 
 ## 向量数据库
 
-页面「向量库」菜单切换，**切换后需重启后端并重新入库文档**（向量数据不跨库迁移）。
+页面「向量库」菜单切换，**切换后需重启后端并重新入库文档**（向量数据不跨库迁移；只是换 Embedding 模型则不用手动删库，见下一节一键重建）。
 
 | 类型 | 说明 | 需要额外服务？ |
 |---|---|---|
 | **Chroma**（默认） | 本地文件持久化到 `./data/chroma_db` | ❌ 开箱即用 |
 | **Qdrant** | Rust 实现，生产级 | ✅ `docker compose up -d qdrant` |
 | **Milvus** | 企业级；填 `.db` 路径走 **Milvus Lite**（零安装），填 `http://host:19530` 连服务器，也支持 Zilliz Cloud | 视模式而定 |
+
+---
+
+## 换了 Embedding 模型？一键重建向量库
+
+向量集合与**建库时的 Embedding 模型终身绑定**，换模型后旧向量无法继续使用：
+
+- **维度不同**（如 2048 维的多模态模型 → 1024 维的 `text-embedding`）：新向量根本写不进去，入库直接报 `Collection expecting embedding with dimension of 2048, got 1024`。**即使把文档全删光也没用** —— 空集合依然锁着旧维度；
+- **维度相同但模型不同**：不报错，但两个模型的向量空间互不相通，检索会静默变成噪声。
+
+正确做法只能是**清空集合 + 对全部文档重新嵌入**。系统把这件事做成了页面上的一键操作：
+
+1. 「模型配置」页改好向量模型，点 **🔌 测试并探测维度**（先保存也可以）
+2. 连通成功后若检测到不兼容，弹出确认框，写明：旧模型 → 新模型、两边维度、涉及文档数、会消耗 API 配额 —— 不自动开始，确认了才执行
+3. 任务在后台跑，模型页横幅与「知识文档」页顶部实时显示进度（`文档 i/N · 当前文件`，3 秒轮询，离开页面自动暂停）；每篇文档的分片进度看文档列表自己的轮询
+
+流水线：**探针嵌入**（Key/地址不对，在动任何数据之前就失败）→ **删除并重建集合**（按探测到的真实维度）→ 重置全部文档行 → 逐篇重新解析/切分/嵌入。
+
+| 设计点 | 行为 |
+|---|---|
+| **弹确认框，不全自动** | 只是试模型也会点「测试连接」，全自动可能在你还没决定时给 9000 片段的知识库白烧配额 |
+| **限流自动退避** | 429 / 限流 / 超时自动等待重试（60 秒起、最多 4 倍）；坏文件、Key 失效这类确定性错误立即失败并列出文件名 |
+| **断点续跑** | 每 50 个片段一批；中断或重启后再点「重试」，已完成的文档和片段不重复嵌入、不重复耗配额 |
+| **模型签名** | 配置里记录建库用的 `{provider, model, base_url, dim}`；**只轮换 API Key 不触发重建**；没有文档且维度不冲突时也不打扰 |
+| **空集合维度锁探测** | 直接读取现存集合锁定的维度，所以「文档全删了/全部失败，集合明明是空的却还是报维度错」这种情形，进页面就能看到提示 |
+| **接口** | `POST /api/documents/reindex`（已有任务运行时返回 409）、`GET /api/documents/reindex/status`，均需管理员登录 |
 
 ---
 
@@ -619,7 +647,7 @@ CustomerService.setLang('ja') / getLang()
 强制指定语言：组件传 `lang: 'ja'`，`/embed` 或后台加 `?lang=ja`，接口传 `{"lang":"ja"}`。
 
 ```bash
-# 四处检查都必须绿：后端 174 项、组件 32 项、后台 34 + 登录页 37 项，加词条覆盖检查
+# 四处检查都必须绿：后端 188 项、组件 32 项、后台 58 + 登录页 37 项，加词条覆盖检查
 cd backend && .venv/bin/pytest src/tests -q
 cd frontend/widget && npm i && node selftest.mjs
 cd frontend/admin && node selftest.mjs && node login-selftest.mjs && node i18n-check.mjs
@@ -659,6 +687,8 @@ Swagger：**http://localhost:8000/docs** · 详细文档：[docs/API.md](docs/AP
 | `GET` | `/api/documents/list` | 文档列表（含入库进度） |
 | `DELETE` | `/api/documents/{id}` | 删除文档及其向量 |
 | `GET` | `/api/documents/parsers` | 支持的文件格式 |
+| `POST` | `/api/documents/reindex` | 换模型后一键重建向量库（后台任务，运行中返回 409） |
+| `GET` | `/api/documents/reindex/status` | 重建进度 + 模型签名/维度锁是否不匹配 |
 | `POST` | `/api/chat` | 一次性问答（JSON） |
 | `POST` | `/api/chat/stream` | **流式问答（SSE）** |
 | `GET` `POST` | `/api/sessions` | 会话列表 / 创建 |
@@ -808,15 +838,29 @@ nohup python scripts/ingest_retry.py > ingest.log 2>&1 &
 ```
 
 想快很多的话，换配额宽松的 embedding（如阿里 DashScope 的 `text-embedding-v3`）。
-注意换模型后维度会变，需同步改向量库维度并**重新入库全部文档**。
+注意换模型后维度会变，需**重建向量库并重新入库全部文档** —— 在「模型配置」页点
+「🔌 测试并探测维度」，按弹出的确认框一键重建即可，不用手动删库。
+</details>
+
+<details>
+<summary><b>入库报 <code>Collection expecting embedding with dimension of 2048, got 1024</code></b></summary>
+
+这是**换了 Embedding 模型但旧集合还锁着旧维度**导致的。删文档、重启服务都解不掉
+（空集合也保留维度锁），必须重建向量库。
+
+到「模型配置」页，横幅会直接写明集合锁定维度与当前模型维度，点「♻️ 立即重建向量库」
+确认即可：后台自动删集合重建并把全部文档重新嵌入。详见
+[换了 Embedding 模型？一键重建向量库](#换了-embedding-模型一键重建向量库)。
 </details>
 
 <details>
 <summary><b>改了向量库 / Embedding 模型后检索不对</b></summary>
 
-向量维度必须与模型输出一致，且**换模型后必须重新入库**（旧向量维度不同）。
+向量维度必须与模型输出一致，且**换模型后必须重建向量库、重新入库** —— 维度相同但
+模型不同也不行，两个模型的向量空间不相通，检索会变成噪声。
 
-用「🔌 测试并探测维度」自动读出真实维度，页面会自动同步 `embedding.dim` 与向量库维度。
+用「🔌 测试并探测维度」自动读出真实维度，页面会同步 `embedding.dim` 与向量库维度，
+并弹出确认框引导一键重建；没有弹窗时也可留意模型页顶部的琥珀色横幅。
 </details>
 
 <details>
@@ -875,7 +919,7 @@ location /api/chat/stream {
 ## 开发与测试
 
 ```bash
-# 后端：174 个测试（其中 71 项是登录鉴权）
+# 后端：188 个测试（其中 73 项是登录鉴权，10 项是换模型重建向量库的状态机）
 cd backend
 python -m pytest src/tests/ -q
 
@@ -884,7 +928,7 @@ cd frontend/widget
 npm install       # 装 jsdom
 npm test
 
-# 管理后台自检：34 项断言，语言切换 + 右上角账号菜单（jsdom 借用 widget 装好的那份）
+# 管理后台自检：58 项断言，语言切换 + 右上角账号菜单 + 重建判定纯函数（jsdom 借用 widget 装好的那份）
 cd frontend/admin
 node selftest.mjs
 
@@ -898,7 +942,7 @@ node i18n-check.mjs
 cd backend && python scripts/check_env.py
 ```
 
-> 后端 174 个测试里有 173 个开箱即绿；剩下那一个在登录功能之前就是红的，
+> 后端 188 个测试里有 187 个开箱即绿；剩下那一个在登录功能之前就是红的，
 > 原因是可选依赖 `chromadb` 没装。
 
 > 组件自检值得一说：`node -c` 只做语法检查，检不出「模板字符串被内部反引号截断」

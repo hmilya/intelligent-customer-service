@@ -50,6 +50,27 @@ class DocumentService:
         except Exception as e:      # progress is best-effort, never fatal
             log.debug("could not persist progress for %s: %s", document_id, e)
 
+    async def _maybe_stamp_index_signature(self, actual_dim: int) -> None:
+        """Backfill ``index_signature`` on a pre-feature knowledge base.
+
+        Called after a document ingests from chunk 0 with no stamp yet. The
+        rebuild pipeline owns the signature otherwise, so an existing one is
+        never touched here.
+        """
+        try:
+            from .embedding_service import embedding_signature, load_embedding_config
+            from .reindex_service import _mutate_config, _stored_signature
+
+            if await _stored_signature() is not None:
+                return
+            cfg = await load_embedding_config(self._settings)
+            cfg["dim"] = int(actual_dim)
+            sig = embedding_signature(cfg)
+            await _mutate_config(lambda data: data.setdefault("index_signature", sig))
+            log.info("Backfilled index signature after ingest: %s", sig)
+        except Exception as e:  # best-effort bookkeeping, never fatal to ingest
+            log.debug("could not backfill index signature: %s", e)
+
     # ---- accessors --------------------------------------------------
     def settings(self) -> Settings:
         return self._settings or get_settings()
@@ -57,6 +78,38 @@ class DocumentService:
     def vector_store(self) -> BaseVectorStore:
         if self._vector_store is None:
             self._vector_store = build_vector_store(self._settings)
+        return self._vector_store
+
+    async def open_vector_store(self) -> BaseVectorStore:
+        """Like ``vector_store()`` but honours the DB-saved dimension.
+
+        The console (and the rebuild pipeline) persist the probed embedding
+        dimension into ``CSConfig.vector_db.embedding_dimension``; qdrant /
+        milvus fix the dimension at collection creation, so ingesting through
+        a store built from the .env value would upsert wrong-dim vectors into
+        the recreated collection. Chroma ignores the override (its dimension is
+        inferred from the first insert).
+        """
+        if self._vector_store is not None:
+            return self._vector_store
+        override = None
+        try:
+            from sqlalchemy import select
+
+            from ..models.config import CSConfig
+
+            async with session_scope() as session:
+                row = (
+                    await session.execute(select(CSConfig).limit(1))
+                ).scalar_one_or_none()
+                vec = (row.data or {}).get("vector_db") if row else None
+                if vec and vec.get("embedding_dimension"):
+                    override = int(vec["embedding_dimension"])
+        except Exception as e:
+            log.debug("could not read vector dim from DB, using .env: %s", e)
+        self._vector_store = build_vector_store(
+            self._settings, embedding_dimension_override=override
+        )
         return self._vector_store
 
     def embedder(self) -> EmbeddingService:
@@ -267,13 +320,16 @@ class DocumentService:
             # would re-pay for the same chunks on every retry and might never
             # finish. `add()` upserts by chunk_id, so re-running a slice is safe.
             embedder = self.embedder()
-            store = self.vector_store()
+            store = await self.open_vector_store()
             done = resume_from
+            actual_dim = 0
             partial_error: Optional[str] = None
             for start in range(resume_from, len(records), self.INDEX_SLICE):
                 sl = records[start : start + self.INDEX_SLICE]
                 try:
                     vectors = await embedder.embed([r.text for r in sl])
+                    if vectors and vectors[0]:
+                        actual_dim = len(vectors[0])
                 except Exception as e:
                     # Keep what's already indexed and report how far we got —
                     # far more useful than discarding an hour of work.
@@ -332,7 +388,16 @@ class DocumentService:
                     doc.chunk_count = doc.chunks_done or 0
                 await session.flush()
                 await session.refresh(doc)  # reload server-set columns (updated_at)
-                return doc.to_dict()
+                result = doc.to_dict()
+
+        # An index built before the signature feature existed has no stamp;
+        # record the current model after a fresh full ingest so the console
+        # can later detect a model swap. Never overwrite an existing stamp —
+        # only the rebuild pipeline may change it (lazy import: reindex_service
+        # imports this module).
+        if new_status == "ready" and actual_dim and resume_from == 0:
+            await self._maybe_stamp_index_signature(actual_dim)
+        return result
 
         if new_status == "failed":
             raise DocumentError(f"Processing failed: {err_msg}")

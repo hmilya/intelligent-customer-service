@@ -267,6 +267,27 @@ class MilvusStore(BaseVectorStore):
         except Exception as e:
             raise VectorStoreError(f"Milvus delete failed: {e}") from e
 
+    async def reset(self) -> None:
+        """Drop and recreate the collection at the configured dimension."""
+
+        def _do():
+            try:
+                if self._client.has_collection(collection_name=self.collection):
+                    try:
+                        self._client.release_collection(collection_name=self.collection)
+                    except Exception:
+                        pass
+                    self._client.drop_collection(collection_name=self.collection)
+            except Exception as e:
+                raise VectorStoreError(f"Milvus drop collection failed: {e}") from e
+            self._ensure_collection()
+
+        await _to_thread(_do)
+        log.warning(
+            "Milvus collection %s was reset at dim=%s (all vectors discarded)",
+            self.collection, self.embedding_dim,
+        )
+
     async def count(self) -> int:
         def _do():
             stats = self._client.get_collection_stats(collection_name=self.collection)
@@ -278,6 +299,28 @@ class MilvusStore(BaseVectorStore):
         except Exception as e:
             log.warning("Milvus count failed: %s", e)
             return 0
+
+    async def dimension(self) -> Optional[int]:
+        """The FLOAT_VECTOR field's dim of the existing collection."""
+
+        def _do() -> Optional[int]:
+            try:
+                desc = self._client.describe_collection(
+                    collection_name=self.collection
+                )
+            except Exception as e:
+                log.debug("could not read milvus collection dimension: %s", e)
+                return None
+            for f in desc.get("fields", []):
+                if f.get("name") == "vector" or str(f.get("type", "")).endswith("FLOAT_VECTOR"):
+                    raw = (f.get("params") or {}).get("dim")
+                    try:
+                        return int(raw) if raw is not None else None
+                    except (TypeError, ValueError):
+                        return None
+            return None
+
+        return await _to_thread(_do)
 
     async def aclose(self) -> None:
         try:

@@ -197,10 +197,50 @@ class QdrantStore(BaseVectorStore):
 
         return await _to_thread(_do)
 
+    async def reset(self) -> None:
+        """Drop and recreate the collection at the configured dimension."""
+
+        def _do():
+            qm = self._qm
+            vectors_config = qm.VectorParams(
+                size=max(1, self.embedding_dim), distance=qm.Distance.COSINE
+            )
+            try:
+                if self._client.collection_exists(collection_name=self.collection):
+                    self._client.delete_collection(collection_name=self.collection)
+                self._client.create_collection(
+                    collection_name=self.collection, vectors_config=vectors_config
+                )
+            except Exception as e:
+                raise VectorStoreError(f"failed to recreate qdrant collection: {e}") from e
+
+        await _to_thread(_do)
+        log.warning(
+            "Qdrant collection %s was reset at dim=%s (all vectors discarded)",
+            self.collection, self.embedding_dim,
+        )
+
     async def count(self) -> int:
         def _do():
             res = self._client.count(collection_name=self.collection, exact=True)
             return int(res.count)
+
+        return await _to_thread(_do)
+
+    async def dimension(self) -> Optional[int]:
+        """The size the collection's unnamed vector was created with."""
+
+        def _do() -> Optional[int]:
+            try:
+                info = self._client.get_collection(collection_name=self.collection)
+                vectors = getattr(info.config.params, "vectors", None)
+                # Single unnamed vector → VectorParams.size; named vectors would
+                # be a dict — this app only ever creates the unnamed kind.
+                size = getattr(vectors, "size", None)
+                return int(size) if size else None
+            except Exception as e:
+                log.debug("could not read qdrant collection dimension: %s", e)
+                return None
 
         return await _to_thread(_do)
 
