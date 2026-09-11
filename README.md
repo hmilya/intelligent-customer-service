@@ -7,7 +7,7 @@
 
 ![status](https://img.shields.io/badge/status-可用-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-188%20backend%20%2B%2032%20widget%20%2B%2095%20admin-brightgreen)
+![tests](https://img.shields.io/badge/tests-208%20backend%20%2B%2032%20widget%20%2B%2095%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **仓库地址**
@@ -29,6 +29,7 @@
 - [架构](#架构)
 - [目录结构](#目录结构)
 - [支持的模型厂商](#支持的模型厂商)
+- [关系型数据库（含信创）](#关系型数据库含信创)
 - [向量数据库](#向量数据库)
 - [换了 Embedding 模型？一键重建向量库](#换了-embedding-模型一键重建向量库)
 - [智能分词（结构感知切分）](#智能分词结构感知切分)
@@ -188,6 +189,8 @@ python run.py --install          # 缺依赖时自动安装
 ---
 
 ## 效果预览
+
+> 📺 **视频演示（B 站）**：[智能客服系统完整演示 · BV1zRYM6VEDJ](https://www.bilibili.com/video/BV1zRYM6VEDJ)
 
 **登录授权** —— 进入 `/admin/**` 的任何页面都要先登录，支持中 / 繁 / 日 / 英切换：
 
@@ -359,6 +362,7 @@ intelligent-customer-service/
 ├── backend/
 │   ├── run.py                        ← 一键启动（PyCharm 右键 Run）
 │   ├── requirements.txt
+│   ├── requirements-xinchuang.txt    达梦 DM8 驱动（可选，仅 Linux/Windows）
 │   ├── .env.example                  （可选；页面配置优先于此）
 │   ├── docker-compose.yml            MySQL + Redis + Qdrant + Milvus
 │   ├── src/
@@ -373,7 +377,7 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter（结构感知）· sse · hash · obfuscation
-│   │   └── tests/                    188 个测试（含 73 项登录鉴权、10 项重建状态机）
+│   │   └── tests/                    208 个测试（含 73 项登录鉴权、20 项数据库驱动探测、10 项重建状态机）
 │   ├── scripts/
 │   │   ├── init_db.py                建表（一键初始化已覆盖，一般不用手跑）
 │   │   ├── check_env.py              依赖/配置自检
@@ -439,6 +443,45 @@ ARK 有两个**计费不同**的产品，务必选对：
 
 包月套餐模型固定填 `ark-code-latest`，路由到哪个具体模型在火山控制台选。
 **用错地址会产生额外费用。**
+
+---
+
+## 关系型数据库（含信创）
+
+会话记录、后台配置、文档元数据存在关系库里。默认 SQLite 零配置；上生产或走信创栈
+只需改 `.env` 里的 `DATABASE_URL`，表结构启动时自动建。ORM 全用 JSON / DateTime 等
+**通用列类型，没有方言专有写法**；而且引擎是纯异步的，连接串必须用异步驱动 ——
+少装驱动或误填同步驱动时，启动报错会直接点出该装哪个包、去哪装，不会甩
+`Can't load plugin` 这种没头没尾的话。
+
+| 数据库 | 连接串 scheme | 驱动来源 |
+|---|---|---|
+| **SQLite**（默认） | `sqlite+aiosqlite` | requirements.txt 已含 |
+| **MySQL / MariaDB** | `mysql+aiomysql` | 已含 |
+| **PostgreSQL** | `postgresql+asyncpg` | 已含（新增 `asyncpg`） |
+| 🇨🇳 **达梦 DM8** | `dm+dmAsync`（默认端口 5236） | `pip install -r requirements-xinchuang.txt` |
+| 🇨🇳 **人大金仓 KingbaseES** | `postgresql+asyncpg`（PG 兼容模式，端口 54321） | 已含 |
+| 🇨🇳 **openGauss** | `postgresql+asyncpg` | 已含 |
+| 🇨🇳 **瀚高 HighGo / 海量 Vastbase G100 / 华为 GaussDB（PG 版）** | `postgresql+asyncpg` | 已含 |
+| 🇨🇳 **TiDB / OceanBase（MySQL 租户）/ GaussDB(for MySQL)** | `mysql+aiomysql` | 已含 |
+
+**为什么信创库能直接用通用驱动**：金仓、openGauss、瀚高、Vastbase、GaussDB 都兼容
+PostgreSQL 通信协议，TiDB / OceanBase 兼容 MySQL 协议，把主机端口换成信创库的就能连。
+
+**两个注意点**：
+
+1. **openGauss 默认 sha256 认证**只有它自家的同步 psycopg2 分支支持，asyncpg 连不上 ——
+   需在服务端改成 md5/scram 认证；金仓要在建库时选 **PG 兼容模式**（原厂 `kingbase8`
+   方言是同步的，用不了本项目的异步引擎）。
+2. **达梦 DM8** 用原厂三件套 `dmPython` + `dmSQLAlchemy` + `dmAsync`（方言
+   `dm+dmAsync`，达梦官方提供，支持异步）。官方只发布 Linux（x86_64/aarch64，
+   适配麒麟、统信）和 Windows 的编译 wheel，**没有 macOS 版**，所以放在单独的
+   [requirements-xinchuang.txt](backend/requirements-xinchuang.txt) 里，信创服务器上
+   `pip install -r` 即可，不影响开发机装主依赖。
+
+配置样例和全部 scheme 见 [backend/.env.example](backend/.env.example)；
+缺驱动时的报错映射在 [db_drivers.py](backend/src/core/db_drivers.py)，换库前也可以先跑
+`python scripts/check_env.py` 预检。
 
 ---
 
@@ -647,7 +690,7 @@ CustomerService.setLang('ja') / getLang()
 强制指定语言：组件传 `lang: 'ja'`，`/embed` 或后台加 `?lang=ja`，接口传 `{"lang":"ja"}`。
 
 ```bash
-# 四处检查都必须绿：后端 188 项、组件 32 项、后台 58 + 登录页 37 项，加词条覆盖检查
+# 四处检查都必须绿：后端 208 项、组件 32 项、后台 58 + 登录页 37 项，加词条覆盖检查
 cd backend && .venv/bin/pytest src/tests -q
 cd frontend/widget && npm i && node selftest.mjs
 cd frontend/admin && node selftest.mjs && node login-selftest.mjs && node i18n-check.mjs
@@ -919,7 +962,7 @@ location /api/chat/stream {
 ## 开发与测试
 
 ```bash
-# 后端：188 个测试（其中 73 项是登录鉴权，10 项是换模型重建向量库的状态机）
+# 后端：208 个测试（73 项登录鉴权、20 项缺驱动/信创连接串探测、10 项重建状态机）
 cd backend
 python -m pytest src/tests/ -q
 
@@ -942,7 +985,7 @@ node i18n-check.mjs
 cd backend && python scripts/check_env.py
 ```
 
-> 后端 188 个测试里有 187 个开箱即绿；剩下那一个在登录功能之前就是红的，
+> 后端 208 个测试里有 207 个开箱即绿；剩下那一个在登录功能之前就是红的，
 > 原因是可选依赖 `chromadb` 没装。
 
 > 组件自检值得一说：`node -c` 只做语法检查，检不出「模板字符串被内部反引号截断」

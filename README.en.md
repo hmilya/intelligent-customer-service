@@ -8,7 +8,7 @@
 
 ![status](https://img.shields.io/badge/status-working-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-188%20backend%20%2B%2032%20widget%20%2B%2095%20admin-brightgreen)
+![tests](https://img.shields.io/badge/tests-208%20backend%20%2B%2032%20widget%20%2B%2095%20admin-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **Repositories**
@@ -30,6 +30,7 @@
 - [Architecture](#architecture)
 - [Project layout](#project-layout)
 - [Supported model vendors](#supported-model-vendors)
+- [Relational databases, incl. Chinese domestic (Xinchuang)](#relational-databases-incl-chinese-domestic-xinchuang)
 - [Vector databases](#vector-databases)
 - [Changed the embedding model? Rebuild the index in one click](#changed-the-embedding-model-rebuild-the-index-in-one-click)
 - [Structure-aware chunking](#structure-aware-chunking)
@@ -184,6 +185,8 @@ model names and vector-DB coordinates — which is why it is behind a login.
 ---
 
 ## Screenshots
+
+> 📺 **Video demo (Bilibili)**: [Full walkthrough of the system · BV1zRYM6VEDJ](https://www.bilibili.com/video/BV1zRYM6VEDJ)
 
 **Sign-in required** — every page under `/admin/**` is gated, with a ZH / ZH-TW / JA / EN switcher:
 
@@ -362,6 +365,7 @@ intelligent-customer-service/
 ├── backend/
 │   ├── run.py                        ← one-click start (PyCharm: right-click → Run)
 │   ├── requirements.txt
+│   ├── requirements-xinchuang.txt    Dameng DM8 drivers (optional, Linux/Windows only)
 │   ├── .env.example                  (optional; UI config takes precedence)
 │   ├── docker-compose.yml            MySQL + Redis + Qdrant + Milvus
 │   ├── src/
@@ -376,7 +380,7 @@ intelligent-customer-service/
 │   │   ├── models/                   SQLAlchemy ORM
 │   │   ├── core/                     config · database · registry · exceptions
 │   │   ├── utils/                    text_splitter (structure-aware) · sse · hash · obfuscation
-│   │   └── tests/                    188 tests (73 auth, 10 rebuild state machine)
+│   │   └── tests/                    208 tests (73 auth, 20 DB-driver detection, 10 rebuild state machine)
 │   ├── scripts/
 │   │   ├── init_db.py                create tables (one-click init covers this)
 │   │   ├── check_env.py              dependency/config self-check
@@ -448,6 +452,54 @@ money:
 
 For the subscription the model name must be `ark-code-latest`; which
 underlying model it routes to is chosen in the ARK console.
+
+---
+
+## Relational databases, incl. Chinese domestic (Xinchuang)
+
+Sessions, console settings and document metadata live in a relational database.
+SQLite is the zero-config default; for production or a 信创 (Xinchuang) stack,
+just change `DATABASE_URL` in `.env` — tables are created automatically on
+startup. The ORM uses only portable column types (JSON, DateTime, …), nothing
+dialect-specific. The engine is fully asynchronous, so the URL **must use an
+async driver**; if a driver is missing (or a synchronous one was typed), the
+startup error names the exact package to install instead of SQLAlchemy's bare
+`Can't load plugin`.
+
+| Database | URL scheme | Driver |
+|---|---|---|
+| **SQLite** (default) | `sqlite+aiosqlite` | bundled in requirements.txt |
+| **MySQL / MariaDB** | `mysql+aiomysql` | bundled |
+| **PostgreSQL** | `postgresql+asyncpg` | bundled (`asyncpg` added) |
+| 🇨🇳 **Dameng DM8** | `dm+dmAsync` (default port 5236) | `pip install -r requirements-xinchuang.txt` |
+| 🇨🇳 **KingbaseES** (人大金仓) | `postgresql+asyncpg` (PG-compatibility mode, port 54321) | bundled |
+| 🇨🇳 **openGauss** | `postgresql+asyncpg` | bundled |
+| 🇨🇳 **HighGo / Vastbase G100 / GaussDB (PG edition)** | `postgresql+asyncpg` | bundled |
+| 🇨🇳 **TiDB / OceanBase (MySQL tenant) / GaussDB(for MySQL)** | `mysql+aiomysql` | bundled |
+
+**Why standard drivers work with domestic databases**: KingbaseES, openGauss,
+HighGo, Vastbase and GaussDB speak the PostgreSQL wire protocol; TiDB and
+OceanBase speak MySQL's. Pointing the same driver at the domestic database's
+host and port is usually enough.
+
+**Two caveats**:
+
+1. **openGauss's default sha256 authentication** is only supported by its own
+   synchronous psycopg2 fork — asyncpg can't negotiate it. Switch the server to
+   md5/scram auth. KingbaseES must be initialised in **PostgreSQL-compatibility
+   mode** (the vendor `kingbase8` dialect is synchronous and unusable with this
+   project's async engine).
+2. **Dameng DM8** uses the official trio `dmPython` + `dmSQLAlchemy` +
+   `dmAsync` (the `dm+dmAsync` dialect is asynchronous, published by Dameng).
+   Dameng only publishes compiled wheels for Linux (x86_64/aarch64 — Kylin and
+   UOS included) and Windows; **there is no macOS wheel**, so the trio lives in
+   the separate [requirements-xinchuang.txt](backend/requirements-xinchuang.txt).
+   `pip install -r` it on the 信创 server; developer laptops keep installing
+   the main requirements.
+
+See [backend/.env.example](backend/.env.example) for URL examples, and
+[db_drivers.py](backend/src/core/db_drivers.py) for the missing-driver error
+mapping. Run `python scripts/check_env.py` to preflight a database switch.
 
 ---
 
@@ -682,7 +734,7 @@ To force a language: pass `lang: 'ja'` to the widget, add `?lang=ja` to `/embed`
 or the console, or send `{"lang":"ja"}` to the API.
 
 ```bash
-# All checks must be green: 188 backend, 32 widget, 58 admin + 37 login, plus catalog coverage
+# All checks must be green: 208 backend, 32 widget, 58 admin + 37 login, plus catalog coverage
 cd backend && .venv/bin/pytest src/tests -q
 cd frontend/widget && npm i && node selftest.mjs
 cd frontend/admin && node selftest.mjs && node login-selftest.mjs && node i18n-check.mjs
@@ -983,7 +1035,7 @@ Python 3.14.5.
 ## Development
 
 ```bash
-# Backend: 188 tests (73 of them auth, 10 cover the rebuild state machine)
+# Backend: 208 tests (73 auth, 20 missing-driver/Xinchuang-URL detection, 10 rebuild state machine)
 cd backend
 python -m pytest src/tests/ -q
 
@@ -1006,7 +1058,7 @@ node i18n-check.mjs
 cd backend && python scripts/check_env.py
 ```
 
-> 187 of the 188 backend tests pass out of the box; the remaining failure
+> 207 of the 208 backend tests pass out of the box; the remaining failure
 > predates the login work and comes from the optional `chromadb` dependency not
 > being installed.
 
