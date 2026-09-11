@@ -9,7 +9,7 @@
 - [方案 B：systemd + Nginx](#方案-bsystemd--nginx)
 - [Nginx 配置（含 SSE 关键设置）](#nginx-配置含-sse-关键设置)
 - [HTTPS 证书](#https-证书)
-- [数据库：SQLite 还是 MySQL](#数据库sqlite-还是-mysql)
+- [数据库选型：SQLite、MySQL、PostgreSQL 与信创库](#数据库选型sqlitemysqlpostgresql-与信创库)
 - [向量库选型与部署](#向量库选型与部署)
 - [首次上线检查清单](#首次上线检查清单)
 - [安全加固](#安全加固)
@@ -49,7 +49,10 @@ LLM 推理在厂商侧，所以对本机 CPU/GPU 无要求。
 |---|---|---|
 | 80 / 443 | Nginx | ✅ 对外 |
 | 8000 | 应用（uvicorn） | ❌ 只监听 127.0.0.1 |
-| 3306 | MySQL | ❌ 仅内网 |
+| 3306 | MySQL / TiDB / OceanBase | ❌ 仅内网 |
+| 5432 | PostgreSQL / openGauss / HighGo / Vastbase | ❌ 仅内网 |
+| 54321 | 人大金仓 KingbaseES | ❌ 仅内网 |
+| 5236 | 达梦 DM8 | ❌ 仅内网 |
 | 6379 | Redis | ❌ 仅内网 |
 | 6333 | Qdrant | ❌ 仅内网 |
 | 19530 | Milvus | ❌ 仅内网 |
@@ -544,19 +547,20 @@ sudo certbot renew --dry-run
 
 ---
 
-## 数据库：SQLite 还是 MySQL
+## 数据库选型：SQLite、MySQL、PostgreSQL 与信创库
 
-| | SQLite（默认） | MySQL |
-|---|---|---|
-| 配置 | 零配置 | 需部署 |
-| 并发写 | 弱（会锁库） | 强 |
-| 备份 | 拷一个文件 | mysqldump |
-| 适用 | 单机、中小流量 | 多 worker、高并发 |
+| | SQLite（默认） | MySQL / MariaDB | PostgreSQL | 达梦 DM8 |
+|---|---|---|---|---|
+| 配置 | 零配置 | 需部署 | 需部署 | 需部署（信创栈） |
+| 并发写 | 弱（会锁库） | 强 | 强 | 强 |
+| 备份 | 拷一个文件 | mysqldump | pg_dump | dexp |
+| 适用 | 单机、中小流量 | 多 worker、高并发 | 多 worker、高并发 | 信创合规环境 |
+| 驱动 | aiosqlite（已含） | aiomysql（已含） | asyncpg（已含） | 需装信创驱动清单 |
 
 这个库只存**配置、会话记录、文档元数据**（不存向量），数据量很小。
 单机部署 SQLite 完全够用。
 
-切到 MySQL：
+### MySQL（以及 TiDB / OceanBase MySQL 模式 / GaussDB for MySQL）
 
 ```env
 DATABASE_URL=mysql+aiomysql://cs_user:密码@localhost:3306/cs_db
@@ -571,7 +575,45 @@ GRANT ALL PRIVILEGES ON cs_db.* TO 'cs_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-换库后需要重新建表 —— 打开管理后台点「🚀 一键初始化」，或跑
+TiDB、OceanBase（MySQL 租户）、GaussDB(for MySQL) 走同一协议，把主机端口
+换掉即可，驱动不变。
+
+### PostgreSQL 与 PG 系信创库（推荐的信创路线）
+
+人大金仓 KingbaseES、openGauss、瀚高 HighGo、海量 Vastbase G100、华为
+GaussDB（PG 兼容版）都兼容 PostgreSQL 协议，统一用 asyncpg：
+
+```env
+# PostgreSQL
+DATABASE_URL=postgresql+asyncpg://cs_user:密码@localhost:5432/cs_db
+# 人大金仓 KingbaseES（建库时选 PG 兼容模式，默认端口 54321）
+DATABASE_URL=postgresql+asyncpg://system:密码@localhost:54321/security
+```
+
+注意：openGauss 默认的 sha256 认证第三方驱动连不上，需在服务端改成
+md5/scram 认证；金仓必须建在 **PG 兼容模式**（原厂 `kingbase8` 方言是同步的，
+本项目异步引擎用不了）。
+
+### 达梦 DM8
+
+达梦用原厂异步方言 `dm+dmAsync`（默认端口 5236）。官方只提供 Linux
+（x86_64/aarch64，适配麒麟、统信）和 Windows 的编译 wheel：
+
+```bash
+pip install -r requirements-xinchuang.txt   # dmPython + dmSQLAlchemy + dmAsync
+```
+
+```env
+DATABASE_URL=dm+dmAsync://SYSDBA:SYSDBA@localhost:5236/DAMENG
+```
+
+> 驱动缺失、填成同步驱动（psycopg2 / pymysql / dmPython）或 scheme 写错时，
+> 启动会直接报出该装什么、怎么改连接串。换库前建议先跑
+> `python scripts/check_env.py` 预检。
+
+### 换库之后
+
+需要重新建表 —— 打开管理后台点「🚀 一键初始化」，或跑
 `python scripts/init_db.py`。**注意配置和文档记录不会自动迁移，需要重新配置和入库。**
 
 ---
