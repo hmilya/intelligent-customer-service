@@ -29,6 +29,8 @@ OPTIONAL = [
     ("chromadb",       "ChromaDB"),
     ("qdrant_client",  "Qdrant client"),
     ("pymilvus",       "Milvus client (pymilvus)"),
+    ("asyncpg",        "asyncpg (PostgreSQL 及 PG 协议信创库)"),
+    ("dmAsync",        "dmAsync (达梦 DM8 异步驱动，信创可选)"),
     ("milvus_lite",    "Milvus Lite (本地 .db 模式需要)"),
     ("PyPDF2",         "PyPDF2 (pdf support)"),
     ("redis",          "redis-py"),
@@ -59,6 +61,16 @@ def main() -> int:
     s = get_settings()
     logger.info("  APP_ENV        = {}", s.app.env)
     logger.info("  DATABASE_URL   = {}", s.database.url)
+    # 按 DATABASE_URL 实际用到的 scheme 探驱动，缺了直接打出安装命令。
+    db_driver_failures = 0
+    try:
+        from src.core.db_drivers import ensure_driver
+        ensure_driver(s.database.url)
+        logger.info("  ✓ DATABASE_URL 驱动已就绪")
+    except Exception as e:
+        db_driver_failures = 1
+        for line in str(e).splitlines():
+            logger.error("  ✗ {}", line)
     logger.info("  VECTOR_DB      = {}  collection={}", s.vector_db.provider, s.vector_db.collection)
     logger.info("  LLM provider   = {}  model={}  protocol={}", s.llm.provider, s.llm.model, s.llm.protocol)
     logger.info("  Embedding      = {}  model={}  dim={}", s.embedding.provider, s.embedding.model, s.embedding.dim)
@@ -72,6 +84,9 @@ def main() -> int:
 
     if req_failures:
         logger.error("❌ {} required package(s) missing. Run: pip install -r requirements.txt", req_failures)
+        return 1
+    if db_driver_failures:
+        logger.error("❌ DATABASE_URL 所需驱动缺失，按上面的 pip 命令安装后重试。")
         return 1
     logger.info("✅ Environment looks good.")
     return 0

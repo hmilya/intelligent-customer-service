@@ -1,0 +1,29 @@
+# =========================================================================
+# 信创数据库驱动（可选，按需安装）
+#
+#   pip install -r requirements-xinchuang.txt
+#
+# 主清单 requirements.txt 已经包含走标准协议的信创库所需驱动：
+#
+#   · 人大金仓 KingbaseES（PG 兼容模式）  → postgresql+asyncpg（asyncpg，默认端口 54321）
+#   · openGauss（需把认证改成 md5/scram） → postgresql+asyncpg
+#   · 瀚高 HighGo / 海量 Vastbase G100     → postgresql+asyncpg
+#   · 华为 GaussDB（PG 兼容版）            → postgresql+asyncpg
+#   · OceanBase / TiDB / GaussDB(for MySQL)（MySQL 协议）→ mysql+aiomysql
+#
+# 本文件只放「标准协议装不了」的原厂驱动。
+#
+# ⚠ 平台限制：达梦官方只发布 Linux（x86_64 / aarch64，适配麒麟/统信）和
+#   Windows 的编译 wheel，没有 macOS 版，也没有源码分发包。所以装了
+#   sys_platform 标记，在 macOS 上执行本文件会自动跳过，不会让
+#   `pip install -r` 整体失败。
+# =========================================================================
+
+# ─── 达梦数据库 DM8 ─────────────────────────────────────
+# 连接串：dm+dmAsync://SYSDBA:SYSDBA@主机:5236/DAMENG
+#   dmPython       —— 达梦官方 PEP-249 驱动（同步）
+#   dmSQLAlchemy   —— 达梦官方 SQLAlchemy 方言（注册 dm:// 与 dm+dmAsync://）
+#   dmAsync        —— 异步兼容层（内部桥接 dmPython，供 create_async_engine 使用）
+dmPython>=2.5.38 ; sys_platform != "darwin"
+dmSQLAlchemy>=2.0.17 ; sys_platform != "darwin"
+dmAsync>=1.0.0 ; sys_platform != "darwin"

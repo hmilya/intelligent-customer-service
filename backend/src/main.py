@@ -41,6 +41,7 @@ from src.api import (
 from src.core.auth import require_admin
 from src.core.config import get_settings
 from src.core.database import dispose_engine, get_engine, session_scope
+from src.core.db_drivers import DatabaseDriverError
 from src.core.exceptions import install_exception_handlers
 from src.core.security import TokenError, decode_token
 from src.models.base import Base
@@ -216,9 +217,17 @@ async def lifespan(app: FastAPI):
     Path("./data").mkdir(parents=True, exist_ok=True)
 
     # Auto-create tables on first boot. (Use Alembic in production.)
-    engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # 驱动缺失/写错时，DatabaseDriverError 自带「装哪个包、连接串怎么改」的
+    # 中文说明，这里不再打整段 traceback 吓人。
+    try:
+        engine = get_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        if isinstance(e, DatabaseDriverError):
+            log.critical("数据库启动失败：\n%s", e)
+            raise SystemExit(1)
+        raise
     log.info("Database ready: %s", settings.database.url)
     log.info("Vector DB: %s / collection=%s", settings.vector_db.provider, settings.vector_db.collection)
 

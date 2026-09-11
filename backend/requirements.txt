@@ -21,7 +21,13 @@ tenacity>=8.2.0                 # 请求重试（指数退避）
 sqlalchemy>=2.0.0
 greenlet>=3.0.0                 # ⚠ SQLAlchemy 异步必需，缺了会报 MissingGreenlet
 aiosqlite>=0.20.0               # SQLite 异步驱动（默认数据库）
-aiomysql>=0.2.0                 # MySQL 异步驱动（生产可选）
+aiomysql>=0.2.0                 # MySQL 异步驱动（生产可选；TiDB / OceanBase MySQL 模式 / GaussDB(for MySQL) 同协议可直接用）
+# PostgreSQL 及走 PG 协议的信创库：人大金仓 KingbaseES（PG 兼容模式）、openGauss、
+# 瀚高 HighGo、海量 Vastbase G100、华为 GaussDB（PG 兼容版）都用它，连接串把
+# 主机/端口换成信创库的即可（金仓默认端口 54321）。跨平台 wheel，开发机也能装。
+asyncpg>=0.30.0
+# 达梦 DM8 / 金仓原厂驱动见同目录 requirements-xinchuang.txt
+# （官方只有 Linux/Windows 的编译 wheel，macOS 开发机装不上，所以不放进主清单）
 
 # ─── 向量数据库 ─────────────────────────────────────────
 chromadb>=0.5.0                 # 默认，本地文件持久化

@@ -4,6 +4,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from .config import get_settings
+from .db_drivers import DatabaseDriverError, ensure_driver, wrap_engine_error
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -21,12 +23,21 @@ def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         settings = get_settings()
-        _engine = create_async_engine(
-            settings.database.url,
-            echo=settings.database.echo,
-            future=True,
-            pool_pre_ping=True,
-        )
+        url = settings.database.url
+        # 在建引擎之前先探驱动，缺了报带 pip 命令的中文错误，而不是
+        # SQLAlchemy 那句 "Can't load plugin"。
+        ensure_driver(url)
+        try:
+            _engine = create_async_engine(
+                url,
+                echo=settings.database.echo,
+                future=True,
+                pool_pre_ping=True,
+            )
+        except DatabaseDriverError:
+            raise
+        except NoSuchModuleError as e:
+            raise wrap_engine_error(url, e) from e
     return _engine
 
 
